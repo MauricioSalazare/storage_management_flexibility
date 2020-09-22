@@ -11,55 +11,79 @@ import print_results as pr
 import numpy as np
 import csv
 import math
+from time import process_time
 
-
+#run your code
 ##########################################
 # Importing System Data
 System_Data_Nodes = pd.read_excel('Nodes_34.xlsx')                          # Node information system (Aggregators - Nominal Demand)
 System_Data_Lines = pd.read_excel('Lines_34.xlsx')                          # Branch information system (topology)
 System_Time_n_Scale = pd.read_excel('Time_slots.xlsx')                      # Scale factor for nominal demand (Original aggreg. profile) - It can be as many timeslots you need [1, +inf)
+System_energy_storage = pd.read_excel('data_storage.xlsx')                      # Scale factor for nominal demand (Original aggreg. profile) - It can be as many timeslots you need [1, +inf)
 
 np.random.seed(30)
+
 
 ##########################################
 # Parameters
 Vnom = 11       # kV
 Snom = 1000     # kVA
-Vmin = 0.85     # pu
-Vmax = 1.00     # pu
-N_MC = 1       # Number of scenarios
-cv = 0.1        # Coefficient of variation
+Vmin = 0.90     # pu
+Vmax = 1.10     # pu
+N_MC = 1
+cv = 0.2        # Coefficient of variation loads
+MC_s = 5       # Number of scenarios
+Pct_penetration = 1.1 # Percentage of penetration (P_pv/P_total)
 
-result = run_pf.run_pf(System_Data_Nodes, System_Data_Lines, System_Time_n_Scale, Vnom, Snom, Vmin, Vmax, N_MC, cv)# System_Data_Flex_max, Vnom, Snom, Vmin, Vmax)
+
+# Loop for MCS
+t1_start = process_time()
+
+for n in range(MC_s):
+    result = run_pf.run_pf(System_Data_Nodes, System_Data_Lines, System_Time_n_Scale, Vnom, Snom, Vmin, Vmax, N_MC, cv, System_energy_storage, Pct_penetration)# System_Data_Flex_max, Vnom, Snom, Vmin, Vmax)
+
+    if n == 0:
+        with open('ems_optimization.csv', 'w') as f:
+            f.write("Scenario,time,")
+            for i in result.Ob:
+                f.write("v_%d," % i)
+            f.write("Loading, storage_P, SOC")
+            f.write("\n")
+
+            for t in result.OT:
+                # for s in result.Os:
+                f.write("%d,%d," % (n, t))
+                for i in result.Ob:
+                    f.write("%.6f," % (math.sqrt(result.V[i, t, 0].value)))
+                f.write("%.6f," % (math.sqrt(result.I[1, 2, t, 0].value)/result.Imax[1,2].value*100))
+                for b in result.Ost:
+                    f.write("%.6f, %.6f" % (result.Pess[b, t, 0].value*result.Snom.value, result.SOC[b, t, 0].value*100))
+                f.write("\n")
+
+        f.close()
+
+    else:
+        with open('ems_optimization.csv', 'a') as f:
+            # f.write("\n")
+            for t in result.OT:
+                # for s in result.Os:
+                f.write("%d,%d," % (n, t))
+                for i in result.Ob:
+                    f.write("%.6f," % (math.sqrt(result.V[i, t, 0].value)))
+                f.write("%.6f," % (math.sqrt(result.I[1, 2, t, 0].value)/result.Imax[1,2].value*100))
+                for b in result.Ost:
+                    f.write("%.6f, %.6f" % (result.Pess[b, t, 0].value*result.Snom.value, result.SOC[b, t, 0].value*100))
+                f.write("\n")
+        f.close()
+
+t1_stop = process_time()
+
+print("Elapsed time:", t1_stop, t1_start)
+
+print("Elapsed time during the whole program in seconds:",t1_stop-t1_start)
 
 #############################################
 
-Tot_Cost = (sum(sum(result.cf[i, t].value for i in result.Ob.value) for t in result.OT.value))*result.Snom.value # Returs total cost of flexibility ( sum(c_i(K_{i,t}, L_{i,t})) )
-Cost_max = result.obj()*result.Snom.value   # Cost of maximum c_i --> Objective function
-V = result.V                                # use V[i,t].value to get specific voltage results
-I = result.I
-# K = result.K
-
-with open('ems_optimization.csv', 'w') as f:
-    f.write("Scenario,time,")
-    for i in result.Ob:
-        f.write("v_%d,"%i)
-    f.write("\n")
-    for t in result.OT:
-        for s in result.Os:
-            f.write("%d,%d," % (s, t))
-            for i in result.Ob:
-                f.write("%.6f,"% (math.sqrt(result.V[i, t, s].value)))
-            f.write("\n")
-
-
-
-
-
-        # print('{:<8d}'.format(i), end=" ")
-        # for t in model.OT:
-        #     print('{:>16.6f}'.format(math.sqrt(model.V[i, t].value)), end=" ")
-        # print('')
 ####################################################
 
 # pr.print_results(result)

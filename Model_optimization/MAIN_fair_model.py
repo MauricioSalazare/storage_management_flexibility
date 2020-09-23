@@ -32,7 +32,7 @@ Vmin = 0.90     # pu
 Vmax = 1.10     # pu
 N_MC = 1
 cv = 0.2        # Coefficient of variation loads
-MC_s = 50       # Number of scenarios
+MC_s = 500       # Number of scenarios
 Pct_penetration = 1.0 # Percentage of penetration (P_pv/P_total)
 
 
@@ -44,6 +44,7 @@ for n in range(MC_s):
                            System_energy_storage, Pct_penetration)# System_Data_Flex_max, Vnom, Snom, Vmin, Vmax)
 
     if flag: # Feasible solution
+        print('Completed: {}%'.format(n/MC_s*100))
         pr.print_results(result, n)
     else:
         n-=1    # Re-do solution with other scenario

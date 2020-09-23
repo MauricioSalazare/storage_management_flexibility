@@ -8,58 +8,42 @@
 import math
 
 
-def print_results(model):
-    dash1 = '-' * 100
-    dash2 = '-' * 30
-    print('\n')
-    print(dash1)
-    print("\t\t SUMMARY")
-    print(dash1)
-    print('\n')
+def print_results(result, n):
+    if n == 0:
+        with open('ems_optimization.csv', 'w') as f:
+            f.write("Scenario,time,")
+            for i in result.Ob:
+                f.write("v_%d," % i)
+            f.write("Loading, SOC, storage_P")
+            f.write("\n")
 
-    print('\n')
-    print(dash2)
-    print("\t\t VOLTAGE MAGNITUDES")
-    print(dash2)
-    for i in model.Ob:
-        print('{:<8d}'.format(i), end=" ")
-        for t in model.OT:
-            print('{:>16.6f}'.format(math.sqrt(model.V[i, t].value)), end=" ")
-        print('')
-        #
+            for t in result.OT:
+                # for s in result.Os:
+                f.write("%d,%d," % (n, t))
+                for i in result.Ob:
+                    f.write("%.6f," % (math.sqrt(result.V[i, t, 0].value)))
+                f.write("%.6f," % (math.sqrt(result.I[1, 2, t, 0].value)/result.Imax[1,2].value*100))
+                for b in result.Ost:
+                    f.write("%.6f, %.6f" % (result.SOC[b, t, 0].value*100, result.Pess[b, t, 0].value*result.Snom.value))
+                f.write("\n")
 
-    print('\n')
-    print('\n')
-    print(dash2)
-    print("\t\t CURRENT MAGNITUDES")
-    print(dash2)
+        f.close()
 
-    for (i, j) in model.Ol:
-        print('{:>5d}{:^2s}{:<5d}'.format(i, '--', j), end=" ")
-        for t in model.OT:
-            print('{:>16.6f}'.format(math.sqrt(model.I[i, j, t].value) * model.Snom.value / model.Vnom.value), end=" ")
-        print('')
-        #
+    else:
+        with open('ems_optimization.csv', 'a') as f:
+            # f.write("\n")
+            for t in result.OT:
+                # for s in result.Os:
+                f.write("%d,%d," % (n, t))
+                for i in result.Ob:
+                    f.write("%.6f," % (math.sqrt(result.V[i, t, 0].value)))
+                f.write("%.6f," % (math.sqrt(result.I[1, 2, t, 0].value)/result.Imax[1,2].value*100))
+                for b in result.Ost:
+                    f.write("%.6f, %.6f" % (result.SOC[b, t, 0].value*100, result.Pess[b, t, 0].value*result.Snom.value))
+                f.write("\n")
+        f.close()
 
-    print('\n')
-    print('\n')
-    print(dash2)
-    print("\t\t FLEXIBILITY FACTORS")
-    print(dash2)
-    A = 0
-    # for i in model.Ob:
-    #     print('{:<8d}'.format(i), end=" ")
-    #     for t in model.OT:
-    #         print('{:>16.6f}'.format(model.K[i, t].value), end=" ")
-    #         A = A + model.cf[i, t].value
-    #     print('')
-
-    print('\n')
-    print('\n')
-    print(dash2)
-    print("\t\t TOTAL COST OF FLEXIBILITY")
-    print(dash2)
-    print('$ {:>1.4f}'.format(A*model.Snom.value), end=" ")
+    A = 1
 
     return A
     #

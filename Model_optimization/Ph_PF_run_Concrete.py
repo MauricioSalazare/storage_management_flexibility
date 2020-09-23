@@ -27,7 +27,21 @@ def run_pf(System_Data_Nodes, System_Data_Lines, System_Time_n_Scale, Vnom, Snom
 
 
     # Solve
-    solver.solve(model, tee=True)
+    results = solver.solve(model, tee=True)
+
+
+    if (results.solver.status == SolverStatus.ok) and (
+            results.solver.termination_condition == TerminationCondition.optimal):
+        flag = True
+    # Do something when the solution in optimal and feasible
+    elif (results.solver.termination_condition == TerminationCondition.infeasible):
+        print('Infeasible: Problem solved once again')
+        flag = False
+    # Do something when model in infeasible
+    else:
+        # Something else is wrong
+        print("Solver Status: ", result.solver.status)
+        flag = False
 
     #####################################################################################
     #####################################################################################
@@ -35,4 +49,4 @@ def run_pf(System_Data_Nodes, System_Data_Lines, System_Time_n_Scale, Vnom, Snom
     #
 
 
-    return model
+    return model, flag

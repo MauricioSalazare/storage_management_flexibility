@@ -32,49 +32,22 @@ Vmin = 0.90     # pu
 Vmax = 1.10     # pu
 N_MC = 1
 cv = 0.2        # Coefficient of variation loads
-MC_s = 5       # Number of scenarios
-Pct_penetration = 1.1 # Percentage of penetration (P_pv/P_total)
+MC_s = 50       # Number of scenarios
+Pct_penetration = 1.0 # Percentage of penetration (P_pv/P_total)
 
 
 # Loop for MCS
 t1_start = process_time()
 
 for n in range(MC_s):
-    result = run_pf.run_pf(System_Data_Nodes, System_Data_Lines, System_Time_n_Scale, Vnom, Snom, Vmin, Vmax, N_MC, cv, System_energy_storage, Pct_penetration)# System_Data_Flex_max, Vnom, Snom, Vmin, Vmax)
+    result, flag = run_pf.run_pf(System_Data_Nodes, System_Data_Lines, System_Time_n_Scale, Vnom, Snom, Vmin, Vmax, N_MC, cv,
+                           System_energy_storage, Pct_penetration)# System_Data_Flex_max, Vnom, Snom, Vmin, Vmax)
 
-    if n == 0:
-        with open('ems_optimization.csv', 'w') as f:
-            f.write("Scenario,time,")
-            for i in result.Ob:
-                f.write("v_%d," % i)
-            f.write("Loading, storage_P, SOC")
-            f.write("\n")
-
-            for t in result.OT:
-                # for s in result.Os:
-                f.write("%d,%d," % (n, t))
-                for i in result.Ob:
-                    f.write("%.6f," % (math.sqrt(result.V[i, t, 0].value)))
-                f.write("%.6f," % (math.sqrt(result.I[1, 2, t, 0].value)/result.Imax[1,2].value*100))
-                for b in result.Ost:
-                    f.write("%.6f, %.6f" % (result.Pess[b, t, 0].value*result.Snom.value, result.SOC[b, t, 0].value*100))
-                f.write("\n")
-
-        f.close()
-
+    if flag: # Feasible solution
+        pr.print_results(result, n)
     else:
-        with open('ems_optimization.csv', 'a') as f:
-            # f.write("\n")
-            for t in result.OT:
-                # for s in result.Os:
-                f.write("%d,%d," % (n, t))
-                for i in result.Ob:
-                    f.write("%.6f," % (math.sqrt(result.V[i, t, 0].value)))
-                f.write("%.6f," % (math.sqrt(result.I[1, 2, t, 0].value)/result.Imax[1,2].value*100))
-                for b in result.Ost:
-                    f.write("%.6f, %.6f" % (result.Pess[b, t, 0].value*result.Snom.value, result.SOC[b, t, 0].value*100))
-                f.write("\n")
-        f.close()
+        n-=1    # Re-do solution with other scenario
+
 
 t1_stop = process_time()
 
@@ -86,7 +59,6 @@ print("Elapsed time during the whole program in seconds:",t1_stop-t1_start)
 
 ####################################################
 
-# pr.print_results(result)
 
 
 

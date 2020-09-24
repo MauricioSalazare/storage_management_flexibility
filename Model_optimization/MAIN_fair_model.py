@@ -29,25 +29,29 @@ np.random.seed(30)
 Vnom = 11       # kV
 Snom = 1000     # kVA
 Vmin = 0.90     # pu
-Vmax = 1.10     # pu
+Vmax = 1.10    # pu
 N_MC = 1
-cv = 0.2        # Coefficient of variation loads
-MC_s = 500       # Number of scenarios
+
+cv = 0.0
+
+MC_s = 100       # Number of scenarios
 Pct_penetration = 1.0 # Percentage of penetration (P_pv/P_total)
 
 
 # Loop for MCS
 t1_start = process_time()
 
-for n in range(MC_s):
+n = 0
+while n < MC_s:
     result, flag = run_pf.run_pf(System_Data_Nodes, System_Data_Lines, System_Time_n_Scale, Vnom, Snom, Vmin, Vmax, N_MC, cv,
                            System_energy_storage, Pct_penetration)# System_Data_Flex_max, Vnom, Snom, Vmin, Vmax)
 
     if flag: # Feasible solution
         print('Completed: {}%'.format(n/MC_s*100))
         pr.print_results(result, n)
+        n += 1
     else:
-        n-=1    # Re-do solution with other scenario
+        n = n    # Re-do solution with other scenario
 
 
 t1_stop = process_time()

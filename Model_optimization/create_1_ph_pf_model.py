@@ -31,6 +31,8 @@ def create_1_ph_pf_model(Vnom, Snom, Vmin, Vmax, Data_Network):
 
     Ppv = Data_Network[19]
     spv = Data_Network[20]
+    pf_ess = Data_Network[21]
+    ramp = Data_Network[22]
 
 
 
@@ -66,9 +68,14 @@ def create_1_ph_pf_model(Vnom, Snom, Vmin, Vmax, Data_Network):
     model.EC = Param(model.Ost, initialize=EC, mutable=True)  # Node demand
     model.Cess = Param(model.Ost, initialize=Cess, mutable=True)  # Node demand
     model.PmaxE = Param(model.Ost, initialize=PmaxE, mutable=True)  # Node demand
+    model.pf_ess = Param(model.Ost, initialize=pf_ess, mutable=True)  # Node demand
+    model.ramp = Param(model.Ost, initialize=ramp, mutable=True)  # Node demand
 
     model.Ppv = Param(model.Ob, model.OT, model.Os, initialize=Ppv, mutable=True)  # Node demand
     model.spv = Param(model.OT, initialize=spv, mutable=True)  # Line resistance
+
+    # model.CV_pv = Param(model.OT, initialize=CV_pv, mutable=True)  # Line resistance
+    # model.CV_D = Param(model.OT, initialize=CV_D, mutable=True)  # Line resistance
 
 
     def R_init_rule(model, i, j):
@@ -104,6 +111,7 @@ def create_1_ph_pf_model(Vnom, Snom, Vmin, Vmax, Data_Network):
     model.cf = Var(model.Ob, model.OT, initialize=0.0)
     model.SOC = Var(model.Ost, model.OT, model.Os, initialize=0.0)
     model.Pess = Var(model.Ost, model.OT, model.Os, initialize=0.0)
+    model.Qess = Var(model.Ost, model.OT, model.Os, initialize=0.0)
 
     def PS_init_rule(model, i, t, s):
         if model.Tb[i] == 0:
@@ -154,7 +162,7 @@ def create_1_ph_pf_model(Vnom, Snom, Vmin, Vmax, Data_Network):
     def reactive_power_flow_rule(model, k, t, s):
         return (sum(model.Q[j, i, t, s] for j, i in model.Ol if i == k) - sum(
             model.Q[i, j, t, s] + model.XM[i, j] * (model.I[i, j, t, s]) for i, j in model.Ol if k == i) + model.QS[
-                    k, t, s] == model.QDs[k, t, s])
+                    k, t, s] + sum(model.Qess[b,t,s] for b in model.Ost if b == k) == model.QDs[k, t, s])
 
     model.reactive_power_flow = Constraint(model.Ob, model.OT, model.Os, rule=reactive_power_flow_rule)
 
@@ -169,10 +177,10 @@ def create_1_ph_pf_model(Vnom, Snom, Vmin, Vmax, Data_Network):
 
     model.define_current = Constraint(model.Ol, model.OT, model.Os, rule=define_current_rule)
 
-    # def current_limit_rule(model, i, j, t, s):
-    #     return (model.I[i, j, t, s] <= Imax[i, j] ** 2)
-    #
-    # model.current_limit = Constraint(model.Ol, model.OT, model.Os, rule=current_limit_rule)
+    def current_limit_rule(model, i, j, t, s):
+        return (model.I[i, j, t, s] <= Imax[i, j] ** 2)
+
+    model.current_limit = Constraint(model.Ol, model.OT, model.Os, rule=current_limit_rule)
 
     def voltage_limit_rule(model, i, t, s):
         return (model.Vmin ** 2, model.V[i, t, s], model.Vmax ** 2)
@@ -209,6 +217,34 @@ def create_1_ph_pf_model(Vnom, Snom, Vmin, Vmax, Data_Network):
             return (model.SOCm[i], model.SOC[i,t,s], model.SOCM[i])
     model.storage_soc3 = Constraint(model.Ost, model.OT, model.Os, rule=storage_soc_rule3)
 
+
+    def storage_ramp_rule(model, i,t,s):
+        if t == 1:
+            return (model.SOC[i, t, s] - model.SOCini[i,s] <= model.ramp[i])
+        else:
+            return (model.SOC[i, t, s] - model.SOC[i,t-1,s] <= model.ramp[i])
+    model.storage_ramp = Constraint(model.Ost, model.OT, model.Os, rule=storage_ramp_rule)
+
+    def storage_ramp_rule2(model, i,t,s):
+        if t == 1:
+            return (-model.SOC[i, t, s] + model.SOCini[i,s] <= model.ramp[i] )
+        else:
+            return (-model.SOC[i, t, s] + model.SOC[i,t-1,s] <= model.ramp[i])
+    model.storage_ramp2 = Constraint(model.Ost, model.OT, model.Os, rule=storage_ramp_rule2)
+
+
+    def storage_powerfactor_rule1(model, i,t,s):
+
+        return ((model.Pess[i,t,s]*tan(acos(model.pf_ess[i]))) >= (model.Qess[i,t,s]))
+
+    model.storage_powerfactor1 = Constraint(model.Ost, model.OT, model.Os, rule=storage_powerfactor_rule1)
+
+
+    def storage_powerfactor_rule2(model, i,t,s):
+
+        return (-model.Pess[i,t,s]*tan(acos(model.pf_ess[i])) >= -model.Qess[i,t,s])
+
+    model.storage_powerfactor2 = Constraint(model.Ost, model.OT, model.Os, rule=storage_powerfactor_rule2)
 
     # # # #
 

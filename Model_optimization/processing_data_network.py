@@ -31,6 +31,8 @@ def processing_system_data_for_pyomo(System_Data_Nodes, System_Data_Lines, Syste
     PmaxE = {Ost[i] : System_energy_storage.loc[i, 'PmaxE'] /Snom for i in System_energy_storage.index}
     EC = {Ost[i] : System_energy_storage.loc[i, 'EC'] /Snom for i in System_energy_storage.index}
     Cess = {Ost[i] : System_energy_storage.loc[i, 'Cess']*Snom for i in System_energy_storage.index}
+    pf_ess = {Ost[i] : System_energy_storage.loc[i, 'pf_ess'] for i in System_energy_storage.index}
+    ramp = {Ost[i] : System_energy_storage.loc[i, 'ramp']/100 for i in System_energy_storage.index}
 
 
 
@@ -45,17 +47,18 @@ def processing_system_data_for_pyomo(System_Data_Nodes, System_Data_Lines, Syste
     sc = {OT[i]: System_Time_n_Scale.loc[i, 'sc'] for i in System_Time_n_Scale.index}
     spv = {OT[i]: System_Time_n_Scale.loc[i, 'spv'] for i in System_Time_n_Scale.index}
 
+    # CV_D = {OT[i]: System_Time_n_Scale.loc[i, 'CV_D'] for i in System_Time_n_Scale.index}
+    # CV_pv = {OT[i]: System_Time_n_Scale.loc[i, 'CV_pv'] for i in System_Time_n_Scale.index}
 
 
 
 
-    PDs = {(Ob[i], OT[t], Os[s]) : System_Time_n_Scale.loc[t, 'sc']*System_Data_Nodes.loc[i, 'PDn']/Snom + np.random.normal(0, System_Time_n_Scale.loc[t, 'sc']*System_Data_Nodes.loc[i, 'PDn']/Snom*cv) for i in System_Data_Nodes.index for t in System_Time_n_Scale.index for s in Os}
+    PDs = {(Ob[i], OT[t], Os[s]) : System_Time_n_Scale.loc[t, 'sc']*System_Data_Nodes.loc[i, 'PDn']/Snom + np.random.normal(0, System_Time_n_Scale.loc[t, 'sc']*System_Data_Nodes.loc[i, 'PDn']/Snom*System_Time_n_Scale.loc[t, 'CV_D']) for i in System_Data_Nodes.index for t in System_Time_n_Scale.index for s in Os}
     SOCini = {(Ost[i], Os[s]) : np.random.uniform(System_energy_storage.loc[i, 'SOCm'], System_energy_storage.loc[i, 'SOCM'])/100 for i in System_energy_storage.index for s in Os}
-    Ppv = {(Ob[i], OT[t], Os[s]) : Pct_penetration*System_Data_Nodes.loc[i, 'PVn'] / Snom + np.random.normal(0, Pct_penetration*System_Data_Nodes.loc[i, 'PVn'] / Snom*cv) for i in System_Data_Nodes.index for t in System_Time_n_Scale.index for s in Os}
+    Ppv = {(Ob[i], OT[t], Os[s]) : Pct_penetration*System_Data_Nodes.loc[i, 'PVn'] / Snom + np.random.normal(0, Pct_penetration*System_Data_Nodes.loc[i, 'PVn'] / Snom*System_Time_n_Scale.loc[t, 'CV_pv']) for i in System_Data_Nodes.index for t in System_Time_n_Scale.index for s in Os}
 
 
-
-    Data_Network = [Ob, Ol, Tb, PD, QD, R, X, Imax, OT, sc, Os, PDs, Ost, SOCini, SOCM, SOCm, PmaxE, EC, Cess, Ppv, spv]
+    Data_Network = [Ob, Ol, Tb, PD, QD, R, X, Imax, OT, sc, Os, PDs, Ost, SOCini, SOCM, SOCm, PmaxE, EC, Cess, Ppv, spv, pf_ess, ramp]
 
 
     return Data_Network

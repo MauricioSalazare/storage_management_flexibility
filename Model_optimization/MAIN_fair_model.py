@@ -34,8 +34,8 @@ N_MC = 1
 
 cv = 0.0
 
-MC_s = 100       # Number of scenarios
-Pct_penetration = 1.0 # Percentage of penetration (P_pv/P_total)
+MC_s = 10       # Number of scenarios
+Pct_penetration = 2.0 # Percentage of penetration (P_pv/P_total)
 
 
 # Loop for MCS
@@ -48,7 +48,7 @@ while n < MC_s:
 
     if flag: # Feasible solution
         print('Completed: {}%'.format(n/MC_s*100))
-        pr.print_results(result, n)
+        pr.print_results(result, n, Pct_penetration, MC_s)
         n += 1
     else:
         n = n    # Re-do solution with other scenario

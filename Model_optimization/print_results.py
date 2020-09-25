@@ -7,10 +7,11 @@
 #####################################################################################
 import math
 
+def print_results(result, n, Pct_penetration, MC_s):
+    name_file = 'ems_optimization_{}_{}.csv'.format(Pct_penetration,MC_s)
 
-def print_results(result, n):
     if n == 0:
-        with open('ems_optimization.csv', 'w') as f:
+        with open(name_file, 'w') as f:
             f.write("Scenario,time,")
             for i in result.Ob:
                 f.write("v_%d," % i)
@@ -30,7 +31,7 @@ def print_results(result, n):
         f.close()
 
     else:
-        with open('ems_optimization.csv', 'a') as f:
+        with open(name_file, 'a') as f:
             # f.write("\n")
             for t in result.OT:
                 # for s in result.Os:

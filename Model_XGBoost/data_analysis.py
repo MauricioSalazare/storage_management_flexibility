@@ -6,6 +6,7 @@ abs_path = Path(__file__).parent
 from scipy import stats
 import xgboost as xgb
 from sklearn.model_selection import KFold, cross_val_score, RandomizedSearchCV
+from sklearn.svm import SVR
 import pickle
 
 data_scenarios = pd.read_csv(abs_path.parents[0] / 'Model_optimization/ems_optimization.csv')
@@ -71,11 +72,11 @@ xgb_parameter_search = RandomizedSearchCV(xgb_regressor_model,
 x_train = data_train.loc[:, data_train.columns != VARIABLES.PREDICT]
 y_train = data_train.loc[:, VARIABLES.PREDICT]
 
-xgb_parameter_search.fit(x_train, y_train)
+# xgb_parameter_search.fit(x_train, y_train)
 
 # pickle.dump(xgb_parameter_search, open(abs_path/ 'XGBoost_model.dat', 'wb'))
 
-# xgb_parameter_search = pickle.load(open(abs_path/ 'XGBoost_model.dat', 'rb'))
+xgb_parameter_search = pickle.load(open(abs_path/ 'XGBoost_model.dat', 'rb'))
 
 xgb_parameter_search.cv_results_['mean_test_score']
 
@@ -97,3 +98,41 @@ ax.bar(x_test.columns, xgb_parameter_search.best_estimator_.feature_importances_
 ax.tick_params(axis='x', rotation=90, labelsize='small')
 ax.set_title('Feature importance')
 
+
+feature_importance = pd.DataFrame({'Feature': x_test.columns,
+                                   'Importance': xgb_parameter_search.best_estimator_.feature_importances_} )
+feature_importance = feature_importance.sort_values(by='Importance', ascending=False)
+
+#%%
+fig = plt.figure(figsize=(6, 5))
+ax = fig.subplots(1, 1)
+plt.subplots_adjust(bottom=0.15)
+ax.bar(feature_importance.Feature, feature_importance.Importance)
+ax.tick_params(axis='x', rotation=90, labelsize='small')
+ax.set_title('Feature importance')
+
+
+svr =  SVR(C=1.0, epsilon=0.2)
+svr.fit(x_train, y_train)
+
+svr =  SVR()
+param_dist_svr = {'C': stats.expon(scale=100),
+                  'gamma': stats.expon(scale=1),
+                  'kernel': ['linear', 'rbf']}
+
+svr_parameter_search = RandomizedSearchCV(svr,
+                                          param_distributions=param_dist_svr,
+                                          n_iter=50,
+                                          scoring='neg_mean_squared_error',
+                                          cv=5,
+                                          refit=1)
+svr_parameter_search.fit(x_train, y_train)
+pickle.dump(svr_parameter_search, open(abs_path / 'SVR_RBF_model.dat', 'wb'))
+
+y_test_hat = svr_parameter_search.predict(x_test)
+
+fig = plt.figure(figsize=(6, 6))
+ax = fig.subplots(1, 1)
+ax.plot(y_test_hat)
+ax.plot(y_test.values)
+ax.set_title('SVR RBF')

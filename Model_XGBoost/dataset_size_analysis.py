@@ -20,23 +20,26 @@ scenario_list = np.round(np.linspace(10, data_scenarios['Scenario'].max() + 1, 1
 
 
 ####################### THIS TAKES TOO LONG !!!! #######################################################################
-# xgb_models_trained = list()
-# for scenario_number, scenario_threshold in enumerate(scenario_list):
-#     print(f'Scenario: {scenario_number} of {(len(scenario_list)-1)} -- Scenario threshold: {scenario_threshold}')
-#
-#     idx = data_scenarios['Scenario'] <= scenario_threshold
-#     data_scenarios_selected = data_scenarios.loc[idx,:]
-#
-#     columns_drop=['Scenario','v_1', ' storage_Q']
-#     columns_predict=[' storage_P']
-#     data_train_clean = data_scenarios_selected.drop(columns=columns_drop)
-#     x_train = data_train_clean.drop(columns=columns_predict)
-#     y_train = data_train_clean.loc[:, columns_predict]
-#
-#     xgb_parameter_search = mu.model_training_xgboost(x_train, y_train)
-#     xgb_models_trained.append(xgb_parameter_search)
+RETRAIN_ALL_MODELS = False
+if RETRAIN_ALL_MODELS:
+    xgb_models_trained = list()
+    for scenario_number, scenario_threshold in enumerate(scenario_list):
+        print(f'Scenario: {scenario_number} of {(len(scenario_list)-1)} -- Scenario threshold: {scenario_threshold}')
 
-# pickle.dump((scenario_list, xgb_models_trained), open(abs_path/ 'All_XGBoost_models_dataset_size_analysis.dat', 'wb'))
+        idx = data_scenarios['Scenario'] <= scenario_threshold
+        data_scenarios_selected = data_scenarios.loc[idx,:]
+
+        columns_drop=['Scenario','v_1', ' storage_Q']
+        columns_predict=[' storage_P']
+        data_train_clean = data_scenarios_selected.drop(columns=columns_drop)
+        x_train = data_train_clean.drop(columns=columns_predict)
+        y_train = data_train_clean.loc[:, columns_predict]
+
+        xgb_parameter_search = mu.model_training_xgboost(x_train, y_train)
+        xgb_models_trained.append(xgb_parameter_search)
+
+    pickle.dump((scenario_list, xgb_models_trained), open(abs_path/ 'All_XGBoost_models_dataset_size_analysis.dat', 'wb'))
+    
 (scenario_list, xgb_models_trained) = pickle.load(open(abs_path/ 'All_XGBoost_models_dataset_size_analysis.dat', 'rb'))
 
 # (scenario_list, xgb_models_trained) = pickle.load(open(abs_path/ 'All_XGBoost_models_dataset_size_analysis.dat', 'rb'))

@@ -15,7 +15,6 @@ import seaborn as sns
 import Model_XGBoost.model_utils as mu
 
 file_name = 'ems_optimization_1.0_200.csv'
-
 (data_train, data_test) = mu.split_data(file_name, testing_split=0.2)
 mu.plot_dataset(data_train, variables=['Loading', ' SOC', ' storage_P', ' storage_Q'])
 mu.plot_dataset(data_test, variables=['Loading', ' SOC', ' storage_P', ' storage_Q'])

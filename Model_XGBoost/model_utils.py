@@ -11,6 +11,8 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, median_abso
 from sklearn.svm import SVR
 import pickle
 import seaborn as sns
+import matplotlib
+matplotlib.rc('text', usetex=True)
 
 def model_training_xgboost(x_train, y_train):
     param_dist = {'n_estimators': stats.randint(150, 500),
@@ -76,11 +78,11 @@ def plot_dataset(data_train, variables):
 
     params = {'Loading': {'Scale': 1,
                           'x_label': 'Hour',
-                          'y_label': 'Percentage [%]',
+                          'y_label': 'Percentage [\%]',
                           'title': 'Transformer Loading'},
               ' SOC':{'Scale': 1,
                       'x_label': 'Hour',
-                      'y_label': 'Percentage [%]',
+                      'y_label': 'Percentage [\%]',
                       'title': 'SOC'},
               ' storage_P': {'Scale': 1000,
                              'x_label': 'Hour',

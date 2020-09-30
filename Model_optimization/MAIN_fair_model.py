@@ -34,8 +34,8 @@ N_MC = 1
 
 cv = 0.0
 
-MC_s = 10       # Number of scenarios
-Pct_penetration = 2.0 # Percentage of penetration (P_pv/P_total)
+MC_s = 1000       # Number of scenarios
+Pct_penetration = 1.0 # Percentage of penetration (P_pv/P_total)
 
 
 # Loop for MCS

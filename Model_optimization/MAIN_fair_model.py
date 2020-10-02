@@ -34,7 +34,7 @@ N_MC = 1
 
 cv = 0.0
 
-MC_s = 1000       # Number of scenarios
+MC_s = 100       # Number of scenarios
 Pct_penetration = 1.0 # Percentage of penetration (P_pv/P_total)
 
 

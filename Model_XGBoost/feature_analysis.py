@@ -14,7 +14,7 @@ import pickle
 import seaborn as sns
 import Model_XGBoost.model_utils as mu
 import matplotlib
-matplotlib.rc('text', usetex=False)
+matplotlib.rc('text', usetex=True)
 
 class VARIABLES:
     PREDICT = [' storage_P']

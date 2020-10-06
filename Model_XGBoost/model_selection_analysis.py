@@ -13,6 +13,9 @@ from sklearn.linear_model import Lasso, LinearRegression
 import pickle
 import seaborn as sns
 import Model_XGBoost.model_utils as mu
+from matplotlib.ticker import NullFormatter
+import matplotlib
+matplotlib.rc('text', usetex=True)
 
 np.random.seed(1234)  # For reproducibility
 file_name = 'ems_optimization_1.0_200.csv'
@@ -214,7 +217,6 @@ plt.subplots_adjust(left=0.12, bottom=0.18, right=0.95, top=0.95)
 ax.plot(models_results['xgboost']['y_hat'][fold][0:slide] / 1000, label='GB-Trees', linewidth=0.6)
 ax.plot(models_results['fold_params']['y_test'][fold][0:slide].ravel() / 1000, label='Actual', linewidth=0.6)
 ax.set_ylabel('Active Power [MW]', labelpad=-4)
-ax.set_xlabel('Hour')
 ax.set_ylim((-2.5, 8))
 ax.set_xlim((0, slide))
 # ax.set_title('Algorithms response')
@@ -228,10 +230,23 @@ axins.set_ylim(-2, 3)
 x1, x2, y1, y2 = from_day, to_day, -2, 3
 axins.set_xlim(x1, x2)
 axins.set_ylim(y1, y2)
-# axins.set_xticklabels('')
+axins.set_xticklabels('')
 # axins.set_yticklabels('')
+axins.xaxis.set_major_formatter(NullFormatter())
+axins.yaxis.set_major_formatter(NullFormatter())
+axins.set_xticks([])
+axins.set_yticks([])
 
 ax.indicate_inset_zoom(axins)
+x_ticks_pos = (np.linspace(0,slide, int(slide/24)+1)+12)[0:-1]
+ax.set_xticks(x_ticks_pos)
+ax.set_xticklabels((np.arange(x_ticks_pos.shape[0])+1).astype('str'))
+ax.set_xlabel('Scenario')
+
+# Create the vertical lines
+for x_line in np.linspace(0,slide, int(slide/24)+1):
+    ax.axvline(x=x_line, linewidth=0.3, linestyle='-', color='#808080')
+
 
 #%%
 # fig = plt.figure(figsize=(4, 4))

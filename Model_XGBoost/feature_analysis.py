@@ -13,6 +13,8 @@ from sklearn.linear_model import Lasso
 import pickle
 import seaborn as sns
 import Model_XGBoost.model_utils as mu
+import matplotlib
+matplotlib.rc('text', usetex=False)
 
 class VARIABLES:
     PREDICT = [' storage_P']
@@ -20,8 +22,8 @@ class VARIABLES:
 file_name = 'ems_optimization_1.0_200.csv'
 
 (data_train, data_test) = mu.split_data(file_name, testing_split=0.2)
-mu.plot_dataset(data_train, variables=['Loading', ' SOC', ' storage_P', ' storage_Q'])
-mu.plot_dataset(data_test, variables=['Loading', ' SOC', ' storage_P', ' storage_Q'])
+# mu.plot_dataset(data_train, variables=['Loading', ' SOC', ' storage_P', ' storage_Q'])
+# mu.plot_dataset(data_test, variables=['Loading', ' SOC', ' storage_P', ' storage_Q'])
 
 (x_train, y_train, x_test, y_test) = mu.split_data_for_model(file_name,
                                                              columns_drop=['Scenario','v_1', ' storage_Q'],
@@ -125,3 +127,23 @@ ax.set_yticks(list(ax.get_yticks())+[round(rmse_vector[-1])])
 ax.axhline(y=round(rmse_vector[-1]), linewidth=0.7, linestyle='--', color='r')
 ax.tick_params(axis='x', labelsize='small')
 
+#%%
+# The figures in in the same plot
+fig = plt.figure(figsize=(4, 3))
+ax = fig.subplots(2, 1)
+plt.subplots_adjust(bottom=0.15, right=0.95, top=0.95, hspace=0.6)
+ax[0].bar(feature_importance_df.Feature.str.replace('_','\_'),
+       feature_importance_df.Importance,
+       yerr=feature_importance_df.std_dev)
+ax[0].tick_params(axis='x', rotation=90, labelsize='small')
+ax[0].set_ylabel('Normalized', fontsize='small')
+# ax[0].set_title('Feature Importance - Gain', fontsize='small')
+
+ax[1].plot(feature_threshold, rmse_vector)
+ax[1].set_ylabel('RMSE [kW]', fontsize='small')
+ax[1].set_xlabel('Number of features', fontsize='small')
+ax[1].set_xticks(feature_threshold)
+# ax[1].set_yticks(list(ax[1].get_yticks())+[round(rmse_vector[-1])])
+ax[1].axhline(y=round(rmse_vector[-1]), linewidth=0.7, linestyle='--', color='r')
+ax[1].tick_params(axis='x', labelsize='small')
+ax[1].set_ylim((90, 400))

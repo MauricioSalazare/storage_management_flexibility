@@ -204,7 +204,6 @@ ax.set_xlabel('Hour')
 ax.legend(loc='upper left', fancybox=False, shadow=False, fontsize='small')
 
 #%% PLOT OF ALL TIME SERIES AND ZOOM IN A BOX
-
 slide = 10 * 24  # 10 scenarios of 24 hours
 from_day = 3 * 24
 to_day = from_day + 1 * 24  # 1 days ahead

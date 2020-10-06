@@ -31,12 +31,17 @@ Snom = 1000     # kVA
 Vmin = 0.90     # pu
 Vmax = 1.10    # pu
 N_MC = 1
-
 cv = 0.0
 
-MC_s = 100       # Number of scenarios
-Pct_penetration = 1.0 # Percentage of penetration (P_pv/P_total)
 
+#########################################
+# Hyperparameters ;)
+#########################################
+MC_s = 100       # Number of scenarios
+Pct_penetration = 2.1 # Percentage of penetration (P_pv/P_total)
+type_simulation = 1 # 1 -> Include ESS and enforce V I limits.   0 -> Do not include ESS and disregard V I limits.
+#########################################
+#########################################
 
 # Loop for MCS
 t1_start = process_time()
@@ -44,11 +49,11 @@ t1_start = process_time()
 n = 0
 while n < MC_s:
     result, flag = run_pf.run_pf(System_Data_Nodes, System_Data_Lines, System_Time_n_Scale, Vnom, Snom, Vmin, Vmax, N_MC, cv,
-                           System_energy_storage, Pct_penetration)# System_Data_Flex_max, Vnom, Snom, Vmin, Vmax)
+                           System_energy_storage, Pct_penetration, type_simulation)# System_Data_Flex_max, Vnom, Snom, Vmin, Vmax)
 
     if flag: # Feasible solution
-        print('Completed: {}%'.format(n/MC_s*100))
-        pr.print_results(result, n, Pct_penetration, MC_s)
+        print('Completed: {}%'.format((n+1)/MC_s*100))
+        pr.print_results(result, n, Pct_penetration, MC_s, type_simulation)
         n += 1
     else:
         n = n    # Re-do solution with other scenario

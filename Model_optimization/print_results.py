@@ -7,8 +7,14 @@
 #####################################################################################
 import math
 
-def print_results(result, n, Pct_penetration, MC_s):
-    name_file = 'ems_optimization_{}_{}.csv'.format(Pct_penetration,MC_s)
+def print_results(result, n, Pct_penetration, MC_s, type_simulation):
+
+    if type_simulation == 1:
+        lim = "yes"
+    else:
+        lim = "no"
+
+    name_file = 'ems_optimization_{}_{}_{}.csv'.format(Pct_penetration,MC_s,lim)
 
     if n == 0:
         with open(name_file, 'w') as f:

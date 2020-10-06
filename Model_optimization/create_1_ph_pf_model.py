@@ -6,7 +6,7 @@
 from pyomo.environ import *
 
 
-def create_1_ph_pf_model(Vnom, Snom, Vmin, Vmax, Data_Network):
+def create_1_ph_pf_model(Vnom, Snom, Vmin, Vmax, Data_Network, type_simulation):
     # Data Processing
     Ob = Data_Network[0]
     Ol = Data_Network[1]
@@ -33,6 +33,7 @@ def create_1_ph_pf_model(Vnom, Snom, Vmin, Vmax, Data_Network):
     spv = Data_Network[20]
     pf_ess = Data_Network[21]
     ramp = Data_Network[22]
+
 
 
 
@@ -178,12 +179,18 @@ def create_1_ph_pf_model(Vnom, Snom, Vmin, Vmax, Data_Network):
     model.define_current = Constraint(model.Ol, model.OT, model.Os, rule=define_current_rule)
 
     def current_limit_rule(model, i, j, t, s):
-        return (model.I[i, j, t, s] <= Imax[i, j] ** 2)
+        if type_simulation == 1:
+            return (model.I[i, j, t, s] <= Imax[i, j] ** 2) # Care for modifications
+        if type_simulation == 0:
+            return (model.I[i, j, t, s] <= (2*Imax[i, j]) ** 2) # Care for modifications
 
     model.current_limit = Constraint(model.Ol, model.OT, model.Os, rule=current_limit_rule)
 
     def voltage_limit_rule(model, i, t, s):
-        return (model.Vmin ** 2, model.V[i, t, s], model.Vmax ** 2)
+        if type_simulation == 1:
+            return (model.Vmin ** 2, model.V[i, t, s], model.Vmax ** 2)
+        if type_simulation == 0:
+            return ((0.5*model.Vmin) ** 2, model.V[i, t, s], (2*model.Vmax) ** 2)
 
     model.voltage_limit = Constraint(model.Ob, model.OT, model.Os, rule=voltage_limit_rule)
 

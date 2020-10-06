@@ -31,8 +31,6 @@ ax_ = fig.subplots(2, 2)
 plt.subplots_adjust(left=0.15, right=0.95, bottom=0.25, top=0.95, wspace=0.4, hspace=0.15)
 ax_ = ax_.ravel()
 
-
-
 data_voltages = data_train_without_battery.filter(regex='v_', axis=1).drop(columns='v_1')
 maximum_voltages = data_voltages.max(axis=1)
 minimum_voltages = data_voltages.min(axis=1)
@@ -91,6 +89,7 @@ for scenario in data_train_with_battery['Scenario'].unique():
     ax_[3].plot(voltages_values_max.values, linewidth=0.3, color='#9713AE')
     ax_[3].plot(voltages_values_min.values, linewidth=0.3, color='#FF8C00')
 
+# Trick to add the labels to the same legend
 ax_[2].plot(loading_values.values, linewidth=0.3, color='#808080', label='Transformer Loading')
 ax_[3].plot(voltages_values_max.values, linewidth=0.3, color='#9713AE', label='Max. Voltage')
 ax_[3].plot(voltages_values_min.values, linewidth=0.3, color='#FF8C00', label='Min. Voltage')
@@ -114,16 +113,12 @@ ax_[3].plot(np.quantile(np.array(variable_data_min), q=0.5, axis=0), color='k', 
 ax_[3].plot(np.quantile(np.array(variable_data_min), q=0.95, axis=0), color='r', linestyle='--')
 
 # Labels and titles
-
-# ax_[0].set_title('Transformer Loading\n[\%]', fontsize='small')
-# ax_[0].set_ylabel('Percentage [\%]', fontsize='small')
 ax_[0].xaxis.set_major_formatter(NullFormatter())
 ax_[0].set_ylim((20, 150))
 ax_[0].set_xticks([])
 ax_[0].axhline(y=100, linewidth=0.7, linestyle='-', color='b')
 ax_[0].set_ylabel('[\%]', fontsize='small')
 
-# ax_[1].set_title('Maximum Voltage\n[p.u.]', fontsize='small')
 ax_[1].xaxis.set_major_formatter(NullFormatter())
 ax_[1].set_xticks([])
 ax_[1].set_ylim((0.89, 1.11))
@@ -131,30 +126,16 @@ ax_[1].axhline(y=1.1, linewidth=0.7, linestyle='-', color='b')
 ax_[1].axhline(y=0.90, linewidth=0.7, linestyle='--', color='b')
 ax_[1].set_ylabel('[p.u.]', fontsize='small')
 
-
-# ax_[2].set_title('Minimum Voltage\n[p.u]', fontsize='small')
-# ax_[2].xaxis.set_major_formatter(NullFormatter())
-# ax_[2].set_xticks([])
-# ax_[2].set_ylim((0.89, 1.01))
-# ax_[2].axhline(y=0.90, linewidth=0.7, linestyle='--', color='b')
-
-
-# ax_[3].set_ylabel('Percentage [\%]', fontsize='small')
-# ax_[3].xaxis.set_major_formatter(NullFormatter())
-# ax_[3].set_xticks([])
 ax_[2].set_ylim((20, 150))
 ax_[2].axhline(y=100, linewidth=0.7, linestyle='-', color='b')
 ax_[2].set_xlabel('Hour', fontsize='small')
 ax_[2].set_ylabel('[\%]', fontsize='small')
-
-
 
 ax_[3].set_ylim((0.89, 1.11))
 ax_[3].axhline(y=1.1, linewidth=0.7, linestyle='-', color='b')
 ax_[3].axhline(y=0.90, linewidth=0.7, linestyle='--', color='b')
 ax_[3].set_xlabel('Hour', fontsize='small')
 ax_[3].set_ylabel('[p.u.]', fontsize='small')
-
 
 ax_[0].tick_params(axis='both', labelsize='small')
 ax_[1].tick_params(axis='both', labelsize='small')

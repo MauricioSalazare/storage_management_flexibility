@@ -23,7 +23,6 @@ file_name_with_battery = 'ems_optimization_2.1_100.csv'
 
 file_name_without_battery = 'ems_optimization_2.1_100_no.csv'
 (data_train_without_battery, data_test_without_battery) = mu.split_data(file_name_without_battery, testing_split=0.2)
-# mu.plot_dataset(data_train, variables=['Loading', ' SOC', ' storage_P', ' storage_Q'])
 
 #%%
 fig = plt.figure(figsize=(4, 3))

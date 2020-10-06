@@ -184,13 +184,13 @@ def get_results_data_set_size_analysis(xgb_models_trained, scenario_list, std_=2
 
 
     if plot:
-        fig = plt.figure(figsize=(4, 4))
+        fig = plt.figure(figsize=(4, 2))
         ax = fig.subplots(1, 1)
-        plt.subplots_adjust(left=0.15, bottom=0.12)
+        plt.subplots_adjust(left=0.15, bottom=0.2, top=0.95)
         ax.plot(scenario_list, std_upper, color='r', linestyle=':', label='Perc. 97.5')
         ax.plot(scenario_list, mean_value, color='r', linestyle='-', label='Perc. 50')
         ax.plot(scenario_list, std_lower, color='r', linestyle='--', label='Perc. 2.5')
-        ax.set_title('RMSE vs Scenarios')
+        # ax.set_title('RMSE vs Scenarios')
         ax.set_xlabel('Scenarios')
         ax.set_ylabel('Error [kw]')
         ax.legend(fontsize='small')

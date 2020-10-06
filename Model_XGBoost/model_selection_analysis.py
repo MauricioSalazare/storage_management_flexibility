@@ -193,15 +193,46 @@ table_results.round(2).to_csv(abs_path / 'algorithm_selection.csv')
 # Plot only one model
 slide = 1
 fold = 0
-fig = plt.figure(figsize=(4, 4))
+fig = plt.figure(figsize=(4, 2.5))
 ax = fig.subplots(1, 1)
 plt.subplots_adjust(left=0.15, bottom=0.15)
 ax.plot(models_results['xgboost']['y_hat'][fold][(48 * slide):(48 * (slide + 1))] / 1000, label='GB-Trees')
 ax.plot(models_results['fold_params']['y_test'][fold][(48 * slide):(48 * (slide + 1))].ravel() / 1000, label='Actual')
 ax.set_ylabel('Active Power [MW]')
 ax.set_xlabel('Hour')
-ax.set_title('Algorithms response')
+# ax.set_title('Algorithms response')
 ax.legend(loc='upper left', fancybox=False, shadow=False, fontsize='small')
+
+#%% PLOT OF ALL TIME SERIES AND ZOOM IN A BOX
+
+slide = 10 * 24  # 10 scenarios of 24 hours
+from_day = 3 * 24
+to_day = from_day + 1 * 24  # 1 days ahead
+fold = 0
+fig = plt.figure(figsize=(4, 2.5))
+ax = fig.subplots(1, 1)
+plt.subplots_adjust(left=0.12, bottom=0.18, right=0.95, top=0.95)
+ax.plot(models_results['xgboost']['y_hat'][fold][0:slide] / 1000, label='GB-Trees', linewidth=0.6)
+ax.plot(models_results['fold_params']['y_test'][fold][0:slide].ravel() / 1000, label='Actual', linewidth=0.6)
+ax.set_ylabel('Active Power [MW]', labelpad=-4)
+ax.set_xlabel('Hour')
+ax.set_ylim((-2.5, 8))
+ax.set_xlim((0, slide))
+# ax.set_title('Algorithms response')
+ax.legend(loc='upper left', fancybox=False, shadow=False, fontsize='small')
+
+axins = ax.inset_axes([0.5, 0.55, 0.45, 0.4])
+axins.plot(models_results['xgboost']['y_hat'][fold][0:slide] / 1000, label='GB-Trees', linewidth=0.6)
+axins.plot(models_results['fold_params']['y_test'][fold][0:slide].ravel() / 1000, label='Actual', linewidth=0.6)
+axins.set_ylim(-2, 3)
+# sub region of the original image
+x1, x2, y1, y2 = from_day, to_day, -2, 3
+axins.set_xlim(x1, x2)
+axins.set_ylim(y1, y2)
+# axins.set_xticklabels('')
+# axins.set_yticklabels('')
+
+ax.indicate_inset_zoom(axins)
 
 #%%
 # fig = plt.figure(figsize=(4, 4))

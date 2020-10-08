@@ -16,7 +16,6 @@ matplotlib.rc('text', usetex=True)
 
 np.random.seed(1234)  # For reproducibility
 file_name = 'ems_optimization_2.1_200_yes.csv'
-
 (data_train, data_test) = mu.split_data(file_name, testing_split=0)  # All data to train
 (x_, y_, _, _) = mu.split_data_for_model(file_name,
                                          columns_drop=['Scenario', 'v_1', ' storage_Q'],
@@ -274,6 +273,7 @@ if TRAIN_ALL_MODELS:
         mean_norm_mse = norm_mse_splits.mean(axis=1)[0]  # Best model
         std_norm_mse = norm_mse_splits.std(axis=1, ddof=0)[0]  # Best model
 
+        # Save results
         reduced_model_results['model_search'].append(xgb_regressor_search)
         reduced_model_results['best_model'].append(xgb_regressor_search.best_estimator_)
         reduced_model_results['predictors'].append(input_features_columns)

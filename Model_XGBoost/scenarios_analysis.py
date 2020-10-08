@@ -8,9 +8,9 @@ import pickle
 from pathlib import Path
 abs_path = Path(__file__).parent
 
-file_name = 'ems_optimization_2.1_150_yes.csv'
+file_name = 'ems_optimization_2.1_1000_yes.csv'
 data_scenarios = pd.read_csv(abs_path.parents[0] / ('Model_optimization/' + file_name))
-scenario_list = np.round(np.linspace(10, data_scenarios['Scenario'].max() + 1, 3))
+scenario_list = np.round(np.linspace(10, data_scenarios['Scenario'].max() + 1, 10))
 
 
 RETRAIN_ALL_MODELS = True
@@ -43,11 +43,11 @@ if RETRAIN_ALL_MODELS:
         xgb_regressor_model = xgb.XGBRegressor(objective='reg:squarederror')
         xgb_regressor_search = RandomizedSearchCV(xgb_regressor_model,
                                                   param_distributions=param_dist,
-                                                  n_iter=10,
+                                                  n_iter=50,
                                                   scoring='neg_mean_squared_error',
-                                                  cv=5,
+                                                  cv=10,
                                                   refit=1,
-                                                  n_jobs=-1)
+                                                  n_jobs=4)
         xgb_regressor_search.fit(x_train, y_train)
 
         # Calculate the normalized error and standard deviation from the folds
@@ -80,3 +80,8 @@ fig, ax = plt.subplots(1, 1, figsize=(4, 2.5))
 ax.errorbar(scenario_list, model_results['mean_norm_rmse_fold'],
             yerr=model_results['std_norm_rmse_fold'],
             marker='o',  markersize=0, linewidth=0.3, color='k')
+ax.set_ylabel('NRMSE [\%]', fontsize=7)
+ax.set_xlabel('Number of scenarios', fontsize='small')
+ax.set_xticks(scenario_list)
+ax.tick_params(axis='both', labelsize=7)
+plt.tight_layout()

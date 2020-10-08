@@ -2,33 +2,28 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
-abs_path = Path(__file__).parent
 from scipy import stats
 import xgboost as xgb
-from sklearn.model_selection import KFold, cross_val_score, RandomizedSearchCV
-from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import mean_absolute_error, mean_squared_error, median_absolute_error
-from sklearn.svm import SVR
-from sklearn.linear_model import Lasso, LinearRegression
+from sklearn.metrics import mean_squared_error
 import pickle
-import seaborn as sns
 import Model_XGBoost.model_utils as mu
 from sklearn.inspection import permutation_importance
 from matplotlib.ticker import NullFormatter
 import matplotlib
-from sklearn.model_selection import train_test_split, GridSearchCV, RandomizedSearchCV, GroupKFold
-
-matplotlib.rc('text', usetex=False)
+from sklearn.model_selection import RandomizedSearchCV, GroupKFold
+abs_path = Path(__file__).parent
+matplotlib.rc('text', usetex=True)
 
 np.random.seed(1234)  # For reproducibility
 file_name = 'ems_optimization_2.1_200_yes.csv'
 
 (data_train, data_test) = mu.split_data(file_name, testing_split=0)  # All data to train
 (x_, y_, _, _) = mu.split_data_for_model(file_name,
-                                       columns_drop=['Scenario','v_1', ' storage_Q'],
-                                       columns_predict=[' storage_P'],
-                                       testing_split=0.0)
-TRAIN_ALL_MODELS = False
+                                         columns_drop=['Scenario', 'v_1', ' storage_Q'],
+                                         columns_predict=[' storage_P'],
+                                         testing_split=0.0)
+
+TRAIN_ALL_MODELS = False  # If set True, the code takes around 5 hours to complete
 
 if TRAIN_ALL_MODELS:
     models_results = {'fold_params': {'x_train': list(),
@@ -79,7 +74,6 @@ if TRAIN_ALL_MODELS:
 
         # Prediction with the best model
         y_hat = xgb_regressor_search.best_estimator_.predict(X_test)
-
 
         # Error on the prediction with the best model in the test fold
         rmse = np.sqrt(mean_squared_error(Y_test.values.ravel(), y_hat.ravel()))
@@ -137,28 +131,33 @@ perm_feat_importance_frame = pd.DataFrame({'feature': feature_names,
 perm_feat_importance_frame = perm_feat_importance_frame.sort_values(by='mean_permutation_importance', ascending=False)
 idx_labels = (-perm_feat_importance.mean(axis=0)).argsort()
 
-#%%
+#%% PLOT OF THE RESULTS OF THE FEATURE SELECTION
 n_features = feat_importances_frame.feature.shape[0]
 fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(4, 4))
 plt.subplots_adjust(bottom=0.15, top=0.95, left=0.15, right=0.95, hspace=0.2)
 ax1.bar(list(np.linspace(0.5, n_features - 0.5, n_features)),
-            # feat_importances_frame.feature.str.replace('_','\_'),
-       feat_importances_frame.mean_gain_importance.values,
-       yerr=feat_importances_frame.std_gain_importance.values)
+        feat_importances_frame.mean_gain_importance.values,
+        yerr=feat_importances_frame.std_gain_importance.values)
 ax1.tick_params(axis='x', rotation=90, labelsize='small')
 ax1.tick_params(axis='both', labelsize='small')
-ax1.set_xticklabels(feat_importances_frame.feature.to_list(), fontsize=6)
+ax1.set_xticklabels(
+                    # feat_importances_frame.feature.to_list(),
+                    feat_importances_frame.feature.str.replace('_', '\_').to_list(),
+                    fontsize=6)
 ax1.set_ylabel('Normalized', fontsize=9)
 
 
 ax1.set_xlim((0, len(feat_importances_frame.feature)))
 ax1.set_xticks(list(np.linspace(0.5, n_features - 0.5, n_features)))
-ax2.boxplot(perm_feat_importance[:,idx_labels],
-           vert=True,
-           labels=feature_names[idx_labels], showfliers=False)
+ax2.boxplot(perm_feat_importance[:, idx_labels],
+            vert=True,
+            labels=feature_names[idx_labels], showfliers=False)
 ax2.tick_params(axis='x', rotation=90, labelsize='small')
 ax2.tick_params(axis='both', labelsize='small')
-ax2.set_xticklabels(feature_names[idx_labels], fontsize=6)
+ax2.set_xticklabels(
+                    # feature_names[idx_labels],
+                    feature_names[idx_labels].str.replace('_', '\_'),
+                    fontsize=6)
 ax2.set_ylabel('Normalized', fontsize=9)
 plt.tight_layout()
 
@@ -168,18 +167,13 @@ from_day = 2 * 24
 to_day = from_day + 1 * 24  # 1 days ahead
 fold = 0
 
-# In the case that only one fold is needed.
-x_data = models_results['xgboost']['y_hat'][fold][0:slide] / 1000
-y_data = models_results['fold_params']['y_test'][fold][0:slide].values.ravel() / 1000
-
 # Two folds are attached together to form a longer time series
-x_data = np.hstack([models_results['xgboost']['y_hat'][fold][0:slide]  / 1000,
-                    models_results['xgboost']['y_hat'][fold+1][0:slide]  / 1000])
+x_data = np.hstack([models_results['xgboost']['y_hat'][fold][0:slide] / 1000,
+                    models_results['xgboost']['y_hat'][fold+1][0:slide] / 1000])
 y_data = np.hstack([models_results['fold_params']['y_test'][fold][0:slide].values.ravel() / 1000,
                     models_results['fold_params']['y_test'][fold+1][0:slide].values.ravel() / 1000])
 
-fig = plt.figure(figsize=(4, 2.5))
-ax = fig.subplots(1, 1)
+_, ax = plt.subplots(1, 1, figsize=(4, 2.5))
 plt.subplots_adjust(left=0.12, bottom=0.18, right=0.95, top=0.95)
 ax.plot(x_data, label='GB-Trees', linewidth=0.6)
 ax.plot(y_data, label='Actual', linewidth=0.6)
@@ -193,25 +187,24 @@ axins = ax.inset_axes([0.5, 0.55, 0.45, 0.4])
 axins.plot(x_data, label='GB-Trees', linewidth=0.6)
 axins.plot(y_data, label='Actual', linewidth=0.6)
 axins.set_ylim(-2, 3)
-# sub region of the original image
+# Sub region of the original image
 x1, x2, y1, y2 = from_day, to_day, -2, 3
 axins.set_xlim(x1, x2)
 axins.set_ylim(y1, y2)
 axins.set_xticklabels('')
-# axins.set_yticklabels('')
 axins.xaxis.set_major_formatter(NullFormatter())
 axins.yaxis.set_major_formatter(NullFormatter())
 axins.set_xticks([])
 axins.set_yticks([])
 
 ax.indicate_inset_zoom(axins)
-x_ticks_pos = (np.linspace(0,slide, int(slide/24)+1)+12)[0:-1]
+x_ticks_pos = (np.linspace(0, slide, int(slide/24)+1)+12)[0:-1]
 ax.set_xticks(x_ticks_pos)
-ax.set_xticklabels((np.arange(x_ticks_pos.shape[0])+1).astype('str'))
+ax.set_xticklabels((np.arange(x_ticks_pos.shape[0]) + 1).astype('str'))
 ax.set_xlabel('Scenario')
 
 # Create the vertical lines
-for x_line in np.linspace(0,slide, int(slide/24)+1):
+for x_line in np.linspace(0, slide, int(slide/24)+1):
     ax.axvline(x=x_line, linewidth=0.3, linestyle='-', color='#808080')
 
 
@@ -245,7 +238,7 @@ if TRAIN_ALL_MODELS:
         input_features_columns = perm_feat_importance_frame[:threshold].feature.to_list()
         print(f'Features: {input_features_columns}')
         (x_train, y_train, x_test, y_test) = mu.split_data_for_model(file_name,
-                                                                     columns_drop=['Scenario','v_1', ' storage_Q'],
+                                                                     columns_drop=['Scenario', 'v_1', ' storage_Q'],
                                                                      columns_predict=[' storage_P'],
                                                                      testing_split=0.2,
                                                                      select_input_features=True,
@@ -270,7 +263,6 @@ if TRAIN_ALL_MODELS:
         norm_rmse = (rmse / (y_test_.max() - y_test_.min())) * 100
 
         # Calculate the normalized error and standard deviation from the folds
-
         cv_results = pd.DataFrame(xgb_regressor_search.cv_results_)
         cv_results = cv_results.sort_values(by='rank_test_score')
 
@@ -299,34 +291,65 @@ if TRAIN_ALL_MODELS:
 
         print(f'Normalized RMSE (%): {round(norm_rmse, 2)}')
         # print(f'RMSE: {np.sqrt(-xgb_regressor_search.cv_results_["mean_test_score"].max())}')
-    pickle.dump((feature_threshold, reduced_model_results), open(abs_path/ 'XGBoost_reduced_models.dat', 'wb'))
+    pickle.dump((feature_threshold, reduced_model_results), open(abs_path / 'XGBoost_reduced_models.dat', 'wb'))
 else:
     (feature_threshold, reduced_model_results) = pickle.load(open(abs_path / 'XGBoost_reduced_models.dat', 'rb'))
 
 #%% Plot error bars
-fig, ax = plt.subplots(1,1, figsize=(4, 2.5))
+fig, ax = plt.subplots(1, 1, figsize=(4, 2))
+fig.subplots_adjust(right=0.95, bottom=0.2, top=0.95)
 ax.errorbar(feature_threshold, reduced_model_results['mean_norm_rmse_fold'],
             yerr=reduced_model_results['std_norm_rmse_fold'],
             marker='o',  markersize=2, linewidth=0.3, color='k')
+ax.set_ylabel('Normalized RMSE [\%]', fontsize='small')
+ax.set_xlabel('Number of predictors', fontsize='small')
+ax.set_xticks(feature_threshold)
+ax.tick_params(axis='x', labelsize='small')
+# fig.tight_layout()
+
+#%% ALL THE FIGURES IN THE SAME PLOT
+n_features = feat_importances_frame.feature.shape[0]
+fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(4, 4))
+plt.subplots_adjust(bottom=0.15, top=0.95, left=0.15, right=0.95, hspace=0.2)
+ax1.bar(list(np.linspace(0.5, n_features - 0.5, n_features)),
+        feat_importances_frame.mean_gain_importance.values,
+        yerr=feat_importances_frame.std_gain_importance.values,
+        error_kw={'markeredgewidth': 0.3, 'elinewidth': 0.3},
+        capsize=2)
+ax1.tick_params(axis='x', rotation=90, labelsize='small')
+ax1.tick_params(axis='both', labelsize='small')
+ax1.set_xticklabels(
+                    # feat_importances_frame.feature.to_list(),
+                    feat_importances_frame.feature.str.replace('_', '\_').to_list(),
+                    fontsize=6)
+ax1.set_ylabel('Normalized', fontsize=7)
 
 
+ax1.set_xlim((0, len(feat_importances_frame.feature)))
+ax1.set_xticks(list(np.linspace(0.5, n_features - 0.5, n_features)))
+ax2.boxplot(perm_feat_importance[:, idx_labels],
+            vert=True,
+            labels=feature_names[idx_labels],
+            showfliers=False,
+            boxprops={'linewidth': 0.3},
+            medianprops={'linewidth': 0.3},
+            whiskerprops={'linewidth': 0.3},
+            capprops={'linewidth': 0.3})
+ax2.tick_params(axis='x', rotation=90, labelsize='small')
+ax2.tick_params(axis='both', labelsize='small')
+ax2.set_xticklabels(
+                    # feature_names[idx_labels],
+                    feature_names[idx_labels].str.replace('_', '\_'),
+                    fontsize=6)
+ax2.set_ylabel('Normalized', fontsize=7)
 
-# #%%
-#
-# best_rmse = list()
-# for model in models_trained:
-#     best_rmse.append(np.sqrt(-model.cv_results_['mean_test_score'].max()))
-#     print(f'RMSE: {np.sqrt(-model.cv_results_["mean_test_score"].max())}')
-# rmse_vector = np.array(best_rmse)
-#
-# #%%
-# fig = plt.figure(figsize=(5, 4))
-# ax = fig.subplots(1, 1)
-# plt.subplots_adjust(left=0.15, top=0.95)
-# ax.plot(feature_threshold, rmse_vector)
-# ax.set_ylabel('RMSE [kW]')
-# ax.set_xlabel('Number of features')
-# ax.set_xticks(feature_threshold)
-# ax.set_yticks(list(ax.get_yticks())+[round(rmse_vector[-1])])
-# ax.axhline(y=round(rmse_vector[-1]), linewidth=0.7, linestyle='--', color='r')
-# ax.tick_params(axis='x', labelsize='small')
+ax3.errorbar(feature_threshold, reduced_model_results['mean_norm_rmse_fold'],
+             yerr=reduced_model_results['std_norm_rmse_fold'],
+             marker='o',  markersize=0, linewidth=0.3, color='k')
+ax3.set_ylabel('NRMSE [\%]', fontsize=7)
+ax3.set_xlabel('Number of predictors', fontsize='small')
+ax3.set_xticks(feature_threshold)
+ax3.tick_params(axis='x', labelsize='small')
+plt.tight_layout()
+
+

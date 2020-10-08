@@ -15,7 +15,7 @@ import matplotlib
 matplotlib.rc('text', usetex=True)
 
 def model_training_xgboost(x_train, y_train):
-    param_dist = {'n_estimators': stats.randint(150, 500),
+    param_dist = {'n_estimators': stats.randint(100, 1000),
                   'learning_rate': stats.uniform(0.01, 0.1),
                   'subsample': stats.uniform(0.3, 0.7),
                   'max_depth': [3, 4, 5, 6, 7, 8, 9],
@@ -28,7 +28,8 @@ def model_training_xgboost(x_train, y_train):
                                               n_iter=50,
                                               scoring='neg_mean_squared_error',
                                               cv=3,
-                                              refit=1)
+                                              refit=1,
+                                              n_jobs=-1)
 
     xgb_parameter_search.fit(x_train, y_train)
 
@@ -192,7 +193,7 @@ def get_results_data_set_size_analysis(xgb_models_trained, scenario_list, std_=2
         ax.plot(scenario_list, std_lower, color='r', linestyle='--', label='Perc. 2.5')
         # ax.set_title('RMSE vs Scenarios')
         ax.set_xlabel('Scenarios')
-        ax.set_ylabel('Error [kw]')
+        ax.set_ylabel('Error [kW]')  # Percentage
         ax.legend(fontsize='small')
 
     return (std_upper, mean_value, std_lower)

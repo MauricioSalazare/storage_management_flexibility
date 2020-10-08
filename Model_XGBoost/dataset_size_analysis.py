@@ -14,7 +14,7 @@ import pickle
 import seaborn as sns
 import Model_XGBoost.model_utils as mu
 
-file_name = 'ems_optimization_1.0_1000.csv'
+file_name = 'ems_optimization_2.1_1000_yes.csv'
 data_scenarios = pd.read_csv(abs_path.parents[0] / ('Model_optimization/' + file_name))
 scenario_list = np.round(np.linspace(10, data_scenarios['Scenario'].max() + 1, 10))
 
@@ -37,6 +37,8 @@ if RETRAIN_ALL_MODELS:
 
         xgb_parameter_search = mu.model_training_xgboost(x_train, y_train)
         xgb_models_trained.append(xgb_parameter_search)
+
+        #TODO: Add a test to calculate the normalized rmse
 
     pickle.dump((scenario_list, xgb_models_trained), open(abs_path/ 'All_XGBoost_models_dataset_size_analysis.dat', 'wb'))
     

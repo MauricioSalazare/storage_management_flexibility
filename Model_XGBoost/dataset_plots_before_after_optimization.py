@@ -18,11 +18,11 @@ matplotlib.rc('text', usetex=True)
 from matplotlib.ticker import NullFormatter
 
 
-file_name_with_battery = 'ems_optimization_2.1_100.csv'
-(data_train_with_battery, data_test_with_battery) = mu.split_data(file_name_with_battery, testing_split=0.2)
+file_name_with_battery = 'ems_optimization_2.1_200_yes.csv'
+(data_train_with_battery, data_test_with_battery) = mu.split_data(file_name_with_battery, testing_split=0.0)
 
-file_name_without_battery = 'ems_optimization_2.1_100_no.csv'
-(data_train_without_battery, data_test_without_battery) = mu.split_data(file_name_without_battery, testing_split=0.2)
+file_name_without_battery = 'ems_optimization_2.1_200_no.csv'
+(data_train_without_battery, data_test_without_battery) = mu.split_data(file_name_without_battery, testing_split=0.0)
 
 #%%
 fig = plt.figure(figsize=(4, 3))
@@ -113,24 +113,24 @@ ax_[3].plot(np.quantile(np.array(variable_data_min), q=0.95, axis=0), color='r',
 
 # Labels and titles
 ax_[0].xaxis.set_major_formatter(NullFormatter())
-ax_[0].set_ylim((20, 150))
+ax_[0].set_ylim((20, 170))
 ax_[0].set_xticks([])
 ax_[0].axhline(y=100, linewidth=0.7, linestyle='-', color='b')
 ax_[0].set_ylabel('[\%]', fontsize='small')
 
 ax_[1].xaxis.set_major_formatter(NullFormatter())
 ax_[1].set_xticks([])
-ax_[1].set_ylim((0.89, 1.11))
+ax_[1].set_ylim((0.85, 1.15))
 ax_[1].axhline(y=1.1, linewidth=0.7, linestyle='-', color='b')
 ax_[1].axhline(y=0.90, linewidth=0.7, linestyle='--', color='b')
 ax_[1].set_ylabel('[p.u.]', fontsize='small')
 
-ax_[2].set_ylim((20, 150))
+ax_[2].set_ylim((20, 170))
 ax_[2].axhline(y=100, linewidth=0.7, linestyle='-', color='b')
 ax_[2].set_xlabel('Hour', fontsize='small')
 ax_[2].set_ylabel('[\%]', fontsize='small')
 
-ax_[3].set_ylim((0.89, 1.11))
+ax_[3].set_ylim((0.85, 1.15))
 ax_[3].axhline(y=1.1, linewidth=0.7, linestyle='-', color='b')
 ax_[3].axhline(y=0.90, linewidth=0.7, linestyle='--', color='b')
 ax_[3].set_xlabel('Hour', fontsize='small')
@@ -142,5 +142,6 @@ ax_[2].tick_params(axis='both', labelsize='small')
 ax_[3].tick_params(axis='both', labelsize='small')
 
 ax_[3].legend(loc='lower center', bbox_to_anchor=(-0.2, -0.8), fancybox=False, shadow=False, ncol=3, fontsize=7)
+
 
 

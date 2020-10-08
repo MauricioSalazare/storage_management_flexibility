@@ -37,7 +37,7 @@ cv = 0.0
 #########################################
 # Hyperparameters ;)
 #########################################
-MC_s = 100       # Number of scenarios
+MC_s = 200       # Number of scenarios
 Pct_penetration = 2.1 # Percentage of penetration (P_pv/P_total)
 type_simulation = 1 # 1 -> Include ESS and enforce V I limits.   0 -> Do not include ESS and disregard V I limits.
 #########################################

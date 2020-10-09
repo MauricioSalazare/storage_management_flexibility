@@ -94,7 +94,7 @@ plt.tight_layout()
 #%%
 # Analyze the parameters found by the best model found by the sweep of scenarios and random hyperparameter search:
 idx_ = np.argsort(model_results['mean_norm_rmse_fold'])
-opt_params = model_results['best_model'][idx_[0]].get_xgb_params()
+opt_params = model_results['best_model'][idx_[0]].get_params()
 scenario_list_final = np.round(np.linspace(10, data_scenarios['Scenario'].max() + 1, 100))
 
 if RETRAIN_ALL_MODELS:

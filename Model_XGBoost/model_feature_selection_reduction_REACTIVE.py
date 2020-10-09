@@ -18,8 +18,8 @@ np.random.seed(1234)  # For reproducibility
 file_name = 'ems_optimization_2.1_200_yes.csv'
 (data_train, data_test) = mu.split_data(file_name, testing_split=0)  # All data to train
 (x_, y_, _, _) = mu.split_data_for_model(file_name,
-                                         columns_drop=['Scenario', 'v_1', ' storage_Q'],
-                                         columns_predict=[' storage_P'],
+                                         columns_drop=['Scenario', 'v_1', ' storage_P'],
+                                         columns_predict=[' storage_Q'],
                                          testing_split=0.0)
 
 TRAIN_ALL_MODELS = False  # If set True, the code takes around 5 hours to complete
@@ -103,14 +103,14 @@ if TRAIN_ALL_MODELS:
         models_results['xgboost']['perm_importance'].append(result_ind)
         models_results['xgboost']['perm_importance_rank'].append(result_ind.importances_mean.argsort() + 1)
 
-    pickle.dump(models_results, open(abs_path / 'XGBoost_models_feature_analysis_reduced_models.dat', 'wb'))
+    pickle.dump(models_results, open(abs_path / 'XGBoost_models_feature_analysis_reduced_models_REACTIVE.dat', 'wb'))
 
 else:
-    models_results = pickle.load(open(abs_path / 'XGBoost_models_feature_analysis_reduced_models.dat', 'rb'))
+    models_results = pickle.load(open(abs_path / 'XGBoost_models_feature_analysis_reduced_models_REACTIVE.dat', 'rb'))
 
 idx_ = np.argsort(np.array(models_results['xgboost']['norm_rmse']).ravel())
 opt_params = models_results['xgboost']['best_trained_model'][idx_[0]].get_params()
-pickle.dump(opt_params, open(abs_path / 'XGBoost_optimal_params.dat', 'wb'))
+pickle.dump(opt_params, open(abs_path / 'XGBoost_optimal_params_REACTIVE.dat', 'wb'))
 
 #%%
 # Feature importance without permutation
@@ -230,7 +230,7 @@ if TRAIN_ALL_MODELS:
     param_dist = {'n_estimators': stats.randint(100, 1000),
                   'learning_rate': stats.uniform(0.01, 0.1),
                   'subsample': stats.uniform(0.3, 0.7),
-                  'max_depth': [3, 4, 5, 6, 7, 8, 9],
+                  'max_depth': [3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
                   'colsample_bytree': stats.uniform(0.5, 0.45),
                   'min_child_weight': [1, 2, 3]}
 
@@ -295,9 +295,9 @@ if TRAIN_ALL_MODELS:
 
         print(f'Normalized RMSE (%): {round(norm_rmse, 2)}')
         # print(f'RMSE: {np.sqrt(-xgb_regressor_search.cv_results_["mean_test_score"].max())}')
-    pickle.dump((feature_threshold, reduced_model_results), open(abs_path / 'XGBoost_reduced_models.dat', 'wb'))
+    pickle.dump((feature_threshold, reduced_model_results), open(abs_path / 'XGBoost_reduced_models_REACTIVE.dat', 'wb'))
 else:
-    (feature_threshold, reduced_model_results) = pickle.load(open(abs_path / 'XGBoost_reduced_models.dat', 'rb'))
+    (feature_threshold, reduced_model_results) = pickle.load(open(abs_path / 'XGBoost_reduced_models_REACTIVE.dat', 'rb'))
 
 #%% Plot error bars
 fig, ax = plt.subplots(1, 1, figsize=(4, 2))

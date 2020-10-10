@@ -15,6 +15,7 @@ abs_path = Path(__file__).parent
 matplotlib.rc('text', usetex=True)
 
 opt_params = pickle.load(open(abs_path / 'XGBoost_optimal_params.dat', 'rb'))
+opt_params_reactive = pickle.load(open(abs_path / 'XGBoost_optimal_params_REACTIVE.dat', 'rb'))
 
 np.random.seed(1234)  # For reproducibility
 file_name = 'ems_optimization_2.1_200_yes.csv'
@@ -37,7 +38,7 @@ xgb_regressor_model.fit(x_train, y_train)
                                             columns_predict=[' storage_Q'],
                                             testing_split=0.2)
 
-xgb_regressor_model_reactive = xgb.XGBRegressor(**opt_params)
+xgb_regressor_model_reactive = xgb.XGBRegressor(**opt_params_reactive)
 xgb_regressor_model_reactive.fit(x_train_reactive, y_train_reactive)
 
 
@@ -112,14 +113,14 @@ fold = 0
 #                     models_results['fold_params']['y_test'][fold+1][0:slide].values.ravel() / 1000])
 
 
-x_data = xgb_regressor_model_reactive.predict(x_test) / 1000
+x_data = xgb_regressor_model_reactive.predict(x_test_reactive) / 1000
 y_data = y_test_reactive.values.ravel() / 1000
 
 _, ax = plt.subplots(1, 1, figsize=(4, 2.5))
 plt.subplots_adjust(left=0.12, bottom=0.18, right=0.95, top=0.95)
 ax.plot(x_data, label='GB-Trees', linewidth=0.6)
 ax.plot(y_data, label='Actual', linewidth=0.6)
-ax.set_ylabel('Active Power [MW]', labelpad=-4)
+ax.set_ylabel('Reactive Power [MVAr]', labelpad=-4)
 ax.set_ylim((-2.5, 8))
 ax.set_xlim((0, slide))
 # ax.set_title('Algorithms response')
@@ -140,11 +141,11 @@ axins.set_xticks([])
 axins.set_yticks([])
 
 ax.indicate_inset_zoom(axins)
-x_ticks_pos = (np.linspace(0, slide, int(slide/24)+1)+12)[0:-1]
+x_ticks_pos = (np.linspace(0, slide, int(slide / 24) + 1) + 12)[0:-1]
 ax.set_xticks(x_ticks_pos)
 ax.set_xticklabels((np.arange(x_ticks_pos.shape[0]) + 1).astype('str'))
 ax.set_xlabel('Scenario')
 
 # Create the vertical lines
-for x_line in np.linspace(0, slide, int(slide/24)+1):
+for x_line in np.linspace(0, slide, int(slide / 24) + 1):
     ax.axvline(x=x_line, linewidth=0.3, linestyle='-', color='#808080')

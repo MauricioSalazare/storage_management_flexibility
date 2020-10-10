@@ -22,7 +22,7 @@ file_name = 'ems_optimization_2.1_200_yes.csv'
                                          columns_predict=[' storage_Q'],
                                          testing_split=0.0)
 
-TRAIN_ALL_MODELS = False  # If set True, the code takes around 5 hours to complete
+TRAIN_ALL_MODELS = True  # If set True, the code takes around 5 hours to complete
 
 if TRAIN_ALL_MODELS:
     models_results = {'fold_params': {'x_train': list(),
@@ -180,7 +180,7 @@ _, ax = plt.subplots(1, 1, figsize=(4, 2.5))
 plt.subplots_adjust(left=0.12, bottom=0.18, right=0.95, top=0.95)
 ax.plot(x_data, label='GB-Trees', linewidth=0.6)
 ax.plot(y_data, label='Actual', linewidth=0.6)
-ax.set_ylabel('Active Power [MW]', labelpad=-4)
+ax.set_ylabel('Reactive Power [MVAr]', labelpad=-4)
 ax.set_ylim((-2.5, 8))
 ax.set_xlim((0, slide))
 # ax.set_title('Algorithms response')
@@ -211,7 +211,7 @@ for x_line in np.linspace(0, slide, int(slide/24)+1):
     ax.axvline(x=x_line, linewidth=0.3, linestyle='-', color='#808080')
 
 
-#%% Compute the cross validation for each group of reduced feature
+#%% Compute the cross validation for each group of reduced features
 if TRAIN_ALL_MODELS:
     reduced_model_results = {'model_search': list(),
                              'best_model': list(),
@@ -241,8 +241,8 @@ if TRAIN_ALL_MODELS:
         input_features_columns = perm_feat_importance_frame[:threshold].feature.to_list()
         print(f'Features: {input_features_columns}')
         (x_train, y_train, x_test, y_test) = mu.split_data_for_model(file_name,
-                                                                     columns_drop=['Scenario', 'v_1', ' storage_Q'],
-                                                                     columns_predict=[' storage_P'],
+                                                                     columns_drop=['Scenario', 'v_1', ' storage_P'],
+                                                                     columns_predict=[' storage_Q'],
                                                                      testing_split=0.2,
                                                                      select_input_features=True,
                                                                      input_features_columns=input_features_columns)

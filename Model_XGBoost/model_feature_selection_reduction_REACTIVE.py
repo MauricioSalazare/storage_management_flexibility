@@ -5,16 +5,16 @@ from pathlib import Path
 from scipy import stats
 import xgboost as xgb
 from sklearn.metrics import mean_squared_error
+from sklearn.model_selection import RandomizedSearchCV, GroupKFold, cross_val_score
+from sklearn.inspection import permutation_importance
 import pickle
 import Model_XGBoost.model_utils as mu
-from sklearn.inspection import permutation_importance
 from matplotlib.ticker import NullFormatter
 import matplotlib
-from sklearn.model_selection import RandomizedSearchCV, GroupKFold
 abs_path = Path(__file__).parent
 matplotlib.rc('text', usetex=True)
 
-np.random.seed(1234)  # For reproducibility
+np.random.seed(4321)  # For reproducibility
 file_name = 'ems_optimization_2.1_200_yes.csv'
 (data_train, data_test) = mu.split_data(file_name, testing_split=0)  # All data to train
 (x_, y_, _, _) = mu.split_data_for_model(file_name,
@@ -22,7 +22,7 @@ file_name = 'ems_optimization_2.1_200_yes.csv'
                                          columns_predict=[' storage_Q'],
                                          testing_split=0.0)
 
-TRAIN_ALL_MODELS = True  # If set True, the code takes around 5 hours to complete
+TRAIN_ALL_MODELS = False  # If set True, the code takes around 5 hours to complete
 
 if TRAIN_ALL_MODELS:
     models_results = {'fold_params': {'x_train': list(),
@@ -35,6 +35,8 @@ if TRAIN_ALL_MODELS:
                                   'cv_results': list(),
                                   'perm_importance': list(),
                                   'perm_importance_rank': list(),
+                                  'perm_importance_test': list(),
+                                  'perm_importance_rank_test': list(),
                                   'y_hat': list(),
                                   'mse': list(),
                                   'neg_mse': list(),
@@ -68,7 +70,7 @@ if TRAIN_ALL_MODELS:
                                                   scoring='neg_mean_squared_error',
                                                   cv=group_kfold_inner.split(X_train, groups=groups_train),
                                                   refit=1,
-                                                  n_jobs=-1)
+                                                  n_jobs=4)
         xgb_regressor_search.fit(X_train, Y_train)
 
         # Prediction with the best model
@@ -81,8 +83,11 @@ if TRAIN_ALL_MODELS:
 
         # Calculate predictor importance
         print('Calculation predictor importance')
-        result_ind = permutation_importance(xgb_regressor_search.best_estimator_, X_train, Y_train, n_repeats=10,
-                                            random_state=42, n_jobs=-1, scoring='neg_mean_squared_error')
+        result_ind_train = permutation_importance(xgb_regressor_search.best_estimator_, X_train, Y_train, n_repeats=10,
+                                                  random_state=24, n_jobs=-1, scoring='neg_mean_squared_error')
+
+        result_ind_test = permutation_importance(xgb_regressor_search.best_estimator_, X_test, Y_test, n_repeats=10,
+                                                 random_state=24, n_jobs=-1, scoring='neg_mean_squared_error')
 
         # Save the results
         models_results['fold_params']['x_train'].append(X_train)
@@ -100,17 +105,93 @@ if TRAIN_ALL_MODELS:
         models_results['xgboost']['rmse'].append(rmse)
         models_results['xgboost']['norm_rmse'].append(norm_rmse)
 
-        models_results['xgboost']['perm_importance'].append(result_ind)
-        models_results['xgboost']['perm_importance_rank'].append(result_ind.importances_mean.argsort() + 1)
+        models_results['xgboost']['perm_importance'].append(result_ind_train)
+        models_results['xgboost']['perm_importance_rank'].append(result_ind_train.importances_mean.argsort() + 1)
+
+        models_results['xgboost']['perm_importance_test'].append(result_ind_test)
+        models_results['xgboost']['perm_importance_rank_test'].append(result_ind_test.importances_mean.argsort() + 1)
 
     pickle.dump(models_results, open(abs_path / 'XGBoost_models_feature_analysis_reduced_models_REACTIVE.dat', 'wb'))
 
 else:
     models_results = pickle.load(open(abs_path / 'XGBoost_models_feature_analysis_reduced_models_REACTIVE.dat', 'rb'))
 
-idx_ = np.argsort(np.array(models_results['xgboost']['norm_rmse']).ravel())
-opt_params = models_results['xgboost']['best_trained_model'][idx_[0]].get_params()
-pickle.dump(opt_params, open(abs_path / 'XGBoost_optimal_params_REACTIVE.dat', 'wb'))
+# Analyze all the best predictors (Build the table)
+best_models = [pd.DataFrame(model.get_params(), index=[0]) for model in models_results['xgboost']['best_trained_model']]
+best_models = pd.concat(best_models, axis=0).reset_index(drop=True)  # Data frame with the 50 best hyper parameters
+
+#%% Run the best models of 5-fold cross-validation and pick the best.
+if TRAIN_ALL_MODELS:
+    cross_val_results = {'norm_rmse_scores': list(),
+                         'mean_norm_rmse_scores': list(),
+                         'std_norm_rmse_scores': list()}
+    group_kfold_inner = GroupKFold(n_splits=5)
+    n_models = len(models_results['xgboost']['best_trained_model'])
+    for iteration, model in enumerate(models_results['xgboost']['best_trained_model']):
+        print(f'Iteration: {iteration + 1} of {n_models}')
+        groups_train = data_train['Scenario']
+        xgb_regressor_model = xgb.XGBRegressor(**model.get_params())
+        norm_factor = np.max(y_.max()) - np.min(y_.min())
+        scores = cross_val_score(xgb_regressor_model,
+                                 x_, y_,
+                                 cv=group_kfold_inner.split(x_, groups=groups_train),
+                                 scoring='neg_mean_squared_error',
+                                 n_jobs=-1)
+        norm_rmse_scores = (np.sqrt(-scores) / norm_factor) * 100
+        cross_val_results['norm_rmse_scores'].append(norm_rmse_scores)
+        cross_val_results['mean_norm_rmse_scores'].append(np.mean(norm_rmse_scores))
+        cross_val_results['std_norm_rmse_scores'].append(np.std(norm_rmse_scores))
+        print(f'NRMSE: {norm_rmse_scores}')
+
+    idx_min_mean = np.argmin(cross_val_results['mean_norm_rmse_scores'])
+    idx_min_std = np.argmin(cross_val_results['std_norm_rmse_scores'])
+
+    best_ = pd.DataFrame({'mean_norm_rmse': cross_val_results['mean_norm_rmse_scores'],
+                          'std_norm_rmse': cross_val_results['std_norm_rmse_scores']}).sort_values(by='mean_norm_rmse')
+
+    # Pick the best model and save it
+    opt_params = models_results['xgboost']['best_trained_model'][idx_min_mean].get_params()
+    pickle.dump(opt_params, open(abs_path / 'XGBoost_optimal_params_REACTIVE.dat', 'wb'))
+    pickle.dump(cross_val_results, open(abs_path / 'XGBoost_optimal_params_scores_REACTIVE.dat', 'wb'))
+else:
+    opt_params = pickle.load(open(abs_path / 'XGBoost_optimal_params_REACTIVE.dat', 'rb'))
+    cross_val_results = pickle.load(open(abs_path / 'XGBoost_optimal_params_scores_REACTIVE.dat', 'rb'))
+
+#%%
+idx_min_mean = np.argmin(cross_val_results['mean_norm_rmse_scores'])
+second_best_idx = np.argsort(cross_val_results['mean_norm_rmse_scores'])[1]  # Second best
+
+# opt_params = models_results['xgboost']['best_trained_model'][second_best_idx].get_params()
+
+######## SECOND BEST MODEL:
+opt_params_second = pd.DataFrame(models_results['xgboost']['best_trained_model'][second_best_idx].get_params(), index=[0])
+opt_params_second['mean_norm_rmse_scores'] = cross_val_results['mean_norm_rmse_scores'][second_best_idx]
+opt_params_second['std_norm_rmse_scores'] = cross_val_results['std_norm_rmse_scores'][second_best_idx]
+
+print(opt_params_second[['n_estimators',
+                   'learning_rate',
+                   'subsample',
+                   'max_depth',
+                   'colsample_bytree',
+                   'min_child_weight',
+                   'mean_norm_rmse_scores',
+                   'std_norm_rmse_scores']].transpose())
+
+
+
+######## THIS IS THE BEST MODEL
+opt_params_ = pd.DataFrame(opt_params, index=[0])
+opt_params_['mean_norm_rmse_scores'] = cross_val_results['mean_norm_rmse_scores'][idx_min_mean]
+opt_params_['std_norm_rmse_scores'] = cross_val_results['std_norm_rmse_scores'][idx_min_mean]
+
+print(opt_params_[['n_estimators',
+                   'learning_rate',
+                   'subsample',
+                   'max_depth',
+                   'colsample_bytree',
+                   'min_child_weight',
+                   'mean_norm_rmse_scores',
+                   'std_norm_rmse_scores']].transpose())
 
 #%%
 # Feature importance without permutation
@@ -211,6 +292,9 @@ for x_line in np.linspace(0, slide, int(slide/24)+1):
     ax.axvline(x=x_line, linewidth=0.3, linestyle='-', color='#808080')
 
 
+########################################################################################################################
+###############################################   REDUCED MODEL   ######################################################
+########################################################################################################################
 #%% Compute the cross validation for each group of reduced features
 if TRAIN_ALL_MODELS:
     reduced_model_results = {'model_search': list(),
@@ -230,7 +314,7 @@ if TRAIN_ALL_MODELS:
     param_dist = {'n_estimators': stats.randint(100, 1000),
                   'learning_rate': stats.uniform(0.01, 0.1),
                   'subsample': stats.uniform(0.3, 0.7),
-                  'max_depth': [3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+                  'max_depth': [3, 4, 5, 6, 7, 8, 9],
                   'colsample_bytree': stats.uniform(0.5, 0.45),
                   'min_child_weight': [1, 2, 3]}
 
@@ -254,7 +338,7 @@ if TRAIN_ALL_MODELS:
                                                   scoring='neg_mean_squared_error',
                                                   cv=10,
                                                   refit=1,
-                                                  n_jobs=-1)
+                                                  n_jobs=4)
         xgb_regressor_search.fit(x_train, y_train)
 
         y_hat = xgb_regressor_search.best_estimator_.predict(x_test)
@@ -357,3 +441,16 @@ ax3.tick_params(axis='x', labelsize='small')
 plt.tight_layout()
 
 
+#%% PARTIAL DEPENDENCE PLOTS
+best_reduced_model = reduced_model_results['best_model'][2]
+
+from sklearn.inspection import plot_partial_dependence
+
+features = reduced_model_results['x_train'][2].columns.to_list()
+matplotlib.rc('text', usetex=False)
+
+# fig, ax = plt.subplots(2,3, figsize=(8,8))
+
+plot_partial_dependence(best_reduced_model, reduced_model_results['x_train'][2], features,
+                        n_jobs=3, grid_resolution=20)
+plt.subplots_adjust(hspace=0.5)

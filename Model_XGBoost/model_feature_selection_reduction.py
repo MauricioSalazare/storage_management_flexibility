@@ -5,13 +5,14 @@ from pathlib import Path
 from scipy import stats
 import xgboost as xgb
 from sklearn.metrics import mean_squared_error
+from sklearn.model_selection import RandomizedSearchCV, GroupKFold, cross_val_score
+from sklearn.inspection import permutation_importance
 import pickle
 import Model_XGBoost.model_utils as mu
-from sklearn.inspection import permutation_importance
 from matplotlib.ticker import NullFormatter
 import matplotlib
-from sklearn.model_selection import RandomizedSearchCV, GroupKFold
 abs_path = Path(__file__).parent
+mu.set_figure_art()
 matplotlib.rc('text', usetex=True)
 
 np.random.seed(1234)  # For reproducibility
@@ -35,6 +36,8 @@ if TRAIN_ALL_MODELS:
                                   'cv_results': list(),
                                   'perm_importance': list(),
                                   'perm_importance_rank': list(),
+                                  'perm_importance_test': list(),
+                                  'perm_importance_rank_test': list(),
                                   'y_hat': list(),
                                   'mse': list(),
                                   'neg_mse': list(),
@@ -68,7 +71,7 @@ if TRAIN_ALL_MODELS:
                                                   scoring='neg_mean_squared_error',
                                                   cv=group_kfold_inner.split(X_train, groups=groups_train),
                                                   refit=1,
-                                                  n_jobs=-1)
+                                                  n_jobs=4)
         xgb_regressor_search.fit(X_train, Y_train)
 
         # Prediction with the best model
@@ -81,7 +84,10 @@ if TRAIN_ALL_MODELS:
 
         # Calculate predictor importance
         print('Calculation predictor importance')
-        result_ind = permutation_importance(xgb_regressor_search.best_estimator_, X_train, Y_train, n_repeats=10,
+        result_ind_train = permutation_importance(xgb_regressor_search.best_estimator_, X_train, Y_train, n_repeats=10,
+                                            random_state=42, n_jobs=-1, scoring='neg_mean_squared_error')
+
+        result_ind_test = permutation_importance(xgb_regressor_search.best_estimator_, X_test, Y_test, n_repeats=10,
                                             random_state=42, n_jobs=-1, scoring='neg_mean_squared_error')
 
         # Save the results
@@ -100,17 +106,74 @@ if TRAIN_ALL_MODELS:
         models_results['xgboost']['rmse'].append(rmse)
         models_results['xgboost']['norm_rmse'].append(norm_rmse)
 
-        models_results['xgboost']['perm_importance'].append(result_ind)
-        models_results['xgboost']['perm_importance_rank'].append(result_ind.importances_mean.argsort() + 1)
+        models_results['xgboost']['perm_importance'].append(result_ind_train)
+        models_results['xgboost']['perm_importance_rank'].append(result_ind_train.importances_mean.argsort() + 1)
+
+        models_results['xgboost']['perm_importance_test'].append(result_ind_test)
+        models_results['xgboost']['perm_importance_rank_test'].append(result_ind_test.importances_mean.argsort() + 1)
 
     pickle.dump(models_results, open(abs_path / 'XGBoost_models_feature_analysis_reduced_models.dat', 'wb'))
 
 else:
     models_results = pickle.load(open(abs_path / 'XGBoost_models_feature_analysis_reduced_models.dat', 'rb'))
 
-idx_ = np.argsort(np.array(models_results['xgboost']['norm_rmse']).ravel())
-opt_params = models_results['xgboost']['best_trained_model'][idx_[0]].get_params()
-pickle.dump(opt_params, open(abs_path / 'XGBoost_optimal_params.dat', 'wb'))
+# Analyze all the best predictors (Build the table)
+best_models = [pd.DataFrame(model.get_params(), index=[0]) for model in models_results['xgboost']['best_trained_model']]
+best_models = pd.concat(best_models, axis=0).reset_index(drop=True)  # Data frame with the 50 best hyper parameters
+
+#%% Run the best models of nested-cross validation and pick the best with the 5-Fold cross validation.
+
+if TRAIN_ALL_MODELS:
+    cross_val_results = {'norm_rmse_scores': list(),
+                         'mean_norm_rmse_scores': list(),
+                         'std_norm_rmse_scores': list()}
+    group_kfold_inner = GroupKFold(n_splits=5)
+    n_models = len(models_results['xgboost']['best_trained_model'])
+    for iteration, model in enumerate(models_results['xgboost']['best_trained_model']):
+        print(f'Iteration: {iteration + 1} of {n_models}')
+        groups_train = data_train['Scenario']
+        xgb_regressor_model = xgb.XGBRegressor(**model.get_params())
+        norm_factor = np.max(y_.max()) - np.min(y_.min())
+        scores = cross_val_score(xgb_regressor_model,
+                                 x_, y_,
+                                 cv=group_kfold_inner.split(x_, groups=groups_train),
+                                 scoring='neg_mean_squared_error',
+                                 n_jobs=-1)
+        norm_rmse_scores = (np.sqrt(-scores) / norm_factor) * 100
+        cross_val_results['norm_rmse_scores'].append(norm_rmse_scores)
+        cross_val_results['mean_norm_rmse_scores'].append(np.mean(norm_rmse_scores))
+        cross_val_results['std_norm_rmse_scores'].append(np.std(norm_rmse_scores))
+        print(f'NRMSE: {norm_rmse_scores}')
+
+    idx_min_mean = np.argmin(cross_val_results['mean_norm_rmse_scores'])
+    idx_min_std = np.argmin(cross_val_results['std_norm_rmse_scores'])
+
+    best_ = pd.DataFrame({'mean_norm_rmse': cross_val_results['mean_norm_rmse_scores'],
+                          'std_norm_rmse': cross_val_results['std_norm_rmse_scores']}).sort_values(by='mean_norm_rmse')
+
+    # Pick the best model and save it
+    opt_params = models_results['xgboost']['best_trained_model'][idx_min_mean].get_params()
+    pickle.dump(opt_params, open(abs_path / 'XGBoost_optimal_params.dat', 'wb'))
+    pickle.dump(cross_val_results, open(abs_path / 'XGBoost_optimal_params_scores.dat', 'wb'))
+else:
+    opt_params = pickle.load(open(abs_path / 'XGBoost_optimal_params.dat', 'rb'))
+    cross_val_results = pickle.load(open(abs_path / 'XGBoost_optimal_params_scores.dat', 'rb'))
+
+#%%
+idx_min_mean = np.argmin(cross_val_results['mean_norm_rmse_scores'])
+opt_params_ = pd.DataFrame(opt_params, index=[0])
+opt_params_['mean_norm_rmse_scores'] = cross_val_results['mean_norm_rmse_scores'][idx_min_mean]
+opt_params_['std_norm_rmse_scores'] = cross_val_results['std_norm_rmse_scores'][idx_min_mean]
+
+######## THIS IS THE BEST MODEL
+print(opt_params_[['n_estimators',
+                   'learning_rate',
+                   'subsample',
+                   'max_depth',
+                   'colsample_bytree',
+                   'min_child_weight',
+                   'mean_norm_rmse_scores',
+                   'std_norm_rmse_scores']].transpose())
 
 #%%
 # Feature importance without permutation
@@ -125,8 +188,8 @@ feat_importances_frame = feat_importances_frame.sort_values(by='mean_gain_import
 
 # Feature importance with permutation
 perm_feat_importance = np.array([model.importances_mean for model in models_results['xgboost']['perm_importance']])
-base_line = -np.array(models_results['xgboost']['neg_mse'])[np.newaxis].T
-perm_feat_importance = np.sqrt(perm_feat_importance/base_line)
+base_line = -np.array(models_results['xgboost']['neg_mse'])[np.newaxis].T  # Base line for normalization
+perm_feat_importance = np.sqrt(perm_feat_importance/base_line)  # Base line for normalization
 
 perm_feat_importance_frame = pd.DataFrame({'feature': feature_names,
                                            'mean_permutation_importance': perm_feat_importance.mean(axis=0),
@@ -211,99 +274,146 @@ for x_line in np.linspace(0, slide, int(slide/24)+1):
     ax.axvline(x=x_line, linewidth=0.3, linestyle='-', color='#808080')
 
 
+########################################################################################################################
+###############################################   REDUCED MODEL   ######################################################
+########################################################################################################################
 #%% Compute the cross validation for each group of reduced feature
-if TRAIN_ALL_MODELS:
-    reduced_model_results = {'model_search': list(),
-                             'best_model': list(),
-                             'predictors': list(),
-                             'x_train': list(),
-                             'y_train': list(),
-                             'x_test': list(),
-                             'y_test': list(),
-                             'mse': list(),
-                             'neg_mse': list(),
-                             'rmse': list(),
-                             'norm_rmse': list(),
-                             'mean_norm_rmse_fold': list(),
-                             'std_norm_rmse_fold': list()}
+# if TRAIN_ALL_MODELS:
+#     reduced_model_results = {'model_search': list(),
+#                              'best_model': list(),
+#                              'predictors': list(),
+#                              'x_train': list(),
+#                              'y_train': list(),
+#                              'x_test': list(),
+#                              'y_test': list(),
+#                              'mse': list(),
+#                              'neg_mse': list(),
+#                              'rmse': list(),
+#                              'norm_rmse': list(),
+#                              'mean_norm_rmse_fold': list(),
+#                              'std_norm_rmse_fold': list()}
+#
+#     param_dist = {'n_estimators': stats.randint(100, 1000),
+#                   'learning_rate': stats.uniform(0.01, 0.1),
+#                   'subsample': stats.uniform(0.3, 0.7),
+#                   'max_depth': [3, 4, 5, 6, 7, 8, 9],
+#                   'colsample_bytree': stats.uniform(0.5, 0.45),
+#                   'min_child_weight': [1, 2, 3]}
+#
+#     feature_threshold = np.arange(2, 38, 2)
+#     models_trained = list()
+#     for threshold in feature_threshold:
+#         print(f'Threshold: {threshold}')
+#         input_features_columns = perm_feat_importance_frame[:threshold].feature.to_list()
+#         print(f'Features: {input_features_columns}')
+#         (x_train, y_train, x_test, y_test) = mu.split_data_for_model(file_name,
+#                                                                      columns_drop=['Scenario', 'v_1', ' storage_Q'],
+#                                                                      columns_predict=[' storage_P'],
+#                                                                      testing_split=0.2,
+#                                                                      select_input_features=True,
+#                                                                      input_features_columns=input_features_columns)
+#
+#         xgb_regressor_model = xgb.XGBRegressor(objective='reg:squarederror')
+#         xgb_regressor_search = RandomizedSearchCV(xgb_regressor_model,
+#                                                   param_distributions=param_dist,
+#                                                   n_iter=50,
+#                                                   scoring='neg_mean_squared_error',
+#                                                   cv=10,
+#                                                   refit=1,
+#                                                   n_jobs=4)
+#         xgb_regressor_search.fit(x_train, y_train)
+#
+#         y_hat = xgb_regressor_search.best_estimator_.predict(x_test)
+#
+#         mse = mean_squared_error(y_test, y_hat)
+#         rmse = np.sqrt(mean_squared_error(y_test, y_hat))
+#
+#         y_test_ = y_test.values.ravel()
+#         norm_rmse = (rmse / (y_test_.max() - y_test_.min())) * 100
+#
+#         # Calculate the normalized error and standard deviation from the folds
+#         cv_results = pd.DataFrame(xgb_regressor_search.cv_results_)
+#         cv_results = cv_results.sort_values(by='rank_test_score')
+#
+#         norm_factor = np.max([y_train.max(), y_test.max()]) - np.min([y_train.min(), y_test.min()])
+#
+#         folds_results = cv_results.filter(regex='split', axis=1)
+#         norm_mse_splits = ((np.sqrt(-folds_results) / norm_factor) * 100)  # Values in percentage
+#
+#         mean_norm_mse = norm_mse_splits.mean(axis=1)[0]  # Best model
+#         std_norm_mse = norm_mse_splits.std(axis=1, ddof=0)[0]  # Best model
+#
+#         # Save results
+#         reduced_model_results['model_search'].append(xgb_regressor_search)
+#         reduced_model_results['best_model'].append(xgb_regressor_search.best_estimator_)
+#         reduced_model_results['predictors'].append(input_features_columns)
+#         reduced_model_results['x_train'].append(x_train)
+#         reduced_model_results['y_train'].append(y_train)
+#         reduced_model_results['x_test'].append(x_test)
+#         reduced_model_results['y_test'].append(y_test)
+#
+#         reduced_model_results['mse'].append(mse)
+#         reduced_model_results['neg_mse'].append(-mse)
+#         reduced_model_results['rmse'].append(rmse)
+#         reduced_model_results['norm_rmse'].append(norm_rmse)
+#         reduced_model_results['mean_norm_rmse_fold'].append(mean_norm_mse)
+#         reduced_model_results['std_norm_rmse_fold'].append(std_norm_mse)
+#
+#         print(f'Normalized RMSE (%): {round(norm_rmse, 2)}')
+#         # print(f'RMSE: {np.sqrt(-xgb_regressor_search.cv_results_["mean_test_score"].max())}')
+#     pickle.dump((feature_threshold, reduced_model_results), open(abs_path / 'XGBoost_reduced_models.dat', 'wb'))
+# else:
+#     (feature_threshold, reduced_model_results) = pickle.load(open(abs_path / 'XGBoost_reduced_models.dat', 'rb'))
 
-    param_dist = {'n_estimators': stats.randint(100, 1000),
-                  'learning_rate': stats.uniform(0.01, 0.1),
-                  'subsample': stats.uniform(0.3, 0.7),
-                  'max_depth': [3, 4, 5, 6, 7, 8, 9],
-                  'colsample_bytree': stats.uniform(0.5, 0.45),
-                  'min_child_weight': [1, 2, 3]}
+
+
+#%% Compute the cross validation for the group of reduced feature FOR THE BEST MODEL ONLY
+if TRAIN_ALL_MODELS:
+    reduced_model_results = {'norm_rmse_scores': list(),
+                             'mean_norm_rmse_scores': list(),
+                             'std_norm_rmse_scores': list()}
 
     feature_threshold = np.arange(2, 38, 2)
-    models_trained = list()
-    for threshold in feature_threshold:
-        print(f'Threshold: {threshold}')
+    groups_train = data_train['Scenario']
+    group_kfold_inner = GroupKFold(n_splits=5)
+    for iteration, threshold in enumerate(feature_threshold):
         input_features_columns = perm_feat_importance_frame[:threshold].feature.to_list()
+
+        print(f'Threshold: {threshold}')
         print(f'Features: {input_features_columns}')
-        (x_train, y_train, x_test, y_test) = mu.split_data_for_model(file_name,
-                                                                     columns_drop=['Scenario', 'v_1', ' storage_Q'],
-                                                                     columns_predict=[' storage_P'],
-                                                                     testing_split=0.2,
-                                                                     select_input_features=True,
-                                                                     input_features_columns=input_features_columns)
+        print(f'Iteration: {iteration + 1} of {len(feature_threshold)}')
 
-        xgb_regressor_model = xgb.XGBRegressor(objective='reg:squarederror')
-        xgb_regressor_search = RandomizedSearchCV(xgb_regressor_model,
-                                                  param_distributions=param_dist,
-                                                  n_iter=50,
-                                                  scoring='neg_mean_squared_error',
-                                                  cv=10,
-                                                  refit=1,
-                                                  n_jobs=-1)
-        xgb_regressor_search.fit(x_train, y_train)
+        (x_, y_, _, _) = mu.split_data_for_model(file_name,
+                                                 columns_drop=['Scenario', 'v_1', ' storage_Q'],
+                                                 columns_predict=[' storage_P'],
+                                                 testing_split=0,
+                                                 select_input_features=True,
+                                                 input_features_columns=input_features_columns)
 
-        y_hat = xgb_regressor_search.best_estimator_.predict(x_test)
+        xgb_regressor_model = xgb.XGBRegressor(**opt_params)
+        norm_factor = np.max(y_.max()) - np.min(y_.min())
+        scores = cross_val_score(xgb_regressor_model,
+                                 x_, y_,
+                                 cv=group_kfold_inner.split(x_, groups=groups_train),
+                                 scoring='neg_mean_squared_error',
+                                 n_jobs=-1)
+        norm_rmse_scores = (np.sqrt(-scores) / norm_factor) * 100
+        reduced_model_results['norm_rmse_scores'].append(norm_rmse_scores)
+        reduced_model_results['mean_norm_rmse_scores'].append(np.mean(norm_rmse_scores))
+        reduced_model_results['std_norm_rmse_scores'].append(np.std(norm_rmse_scores))
+        print(f'NRMSE: {np.mean(norm_rmse_scores)}')
 
-        mse = mean_squared_error(y_test, y_hat)
-        rmse = np.sqrt(mean_squared_error(y_test, y_hat))
-
-        y_test_ = y_test.values.ravel()
-        norm_rmse = (rmse / (y_test_.max() - y_test_.min())) * 100
-
-        # Calculate the normalized error and standard deviation from the folds
-        cv_results = pd.DataFrame(xgb_regressor_search.cv_results_)
-        cv_results = cv_results.sort_values(by='rank_test_score')
-
-        norm_factor = np.max([y_train.max(), y_test.max()]) - np.min([y_train.min(), y_test.min()])
-
-        folds_results = cv_results.filter(regex='split', axis=1)
-        norm_mse_splits = ((np.sqrt(-folds_results) / norm_factor) * 100)  # Values in percentage
-
-        mean_norm_mse = norm_mse_splits.mean(axis=1)[0]  # Best model
-        std_norm_mse = norm_mse_splits.std(axis=1, ddof=0)[0]  # Best model
-
-        # Save results
-        reduced_model_results['model_search'].append(xgb_regressor_search)
-        reduced_model_results['best_model'].append(xgb_regressor_search.best_estimator_)
-        reduced_model_results['predictors'].append(input_features_columns)
-        reduced_model_results['x_train'].append(x_train)
-        reduced_model_results['y_train'].append(y_train)
-        reduced_model_results['x_test'].append(x_test)
-        reduced_model_results['y_test'].append(y_test)
-
-        reduced_model_results['mse'].append(mse)
-        reduced_model_results['neg_mse'].append(-mse)
-        reduced_model_results['rmse'].append(rmse)
-        reduced_model_results['norm_rmse'].append(norm_rmse)
-        reduced_model_results['mean_norm_rmse_fold'].append(mean_norm_mse)
-        reduced_model_results['std_norm_rmse_fold'].append(std_norm_mse)
-
-        print(f'Normalized RMSE (%): {round(norm_rmse, 2)}')
-        # print(f'RMSE: {np.sqrt(-xgb_regressor_search.cv_results_["mean_test_score"].max())}')
-    pickle.dump((feature_threshold, reduced_model_results), open(abs_path / 'XGBoost_reduced_models.dat', 'wb'))
+    pickle.dump((feature_threshold, reduced_model_results), open(abs_path / 'XGBoost_reduced_ONE_model.dat', 'wb'))
 else:
-    (feature_threshold, reduced_model_results) = pickle.load(open(abs_path / 'XGBoost_reduced_models.dat', 'rb'))
+    (feature_threshold, reduced_model_results) = pickle.load(open(abs_path / 'XGBoost_reduced_ONE_model.dat', 'rb'))
+
+
 
 #%% Plot error bars
 fig, ax = plt.subplots(1, 1, figsize=(4, 2))
 fig.subplots_adjust(right=0.95, bottom=0.2, top=0.95)
-ax.errorbar(feature_threshold, reduced_model_results['mean_norm_rmse_fold'],
-            yerr=reduced_model_results['std_norm_rmse_fold'],
+ax.errorbar(feature_threshold, reduced_model_results['mean_norm_rmse_scores'],
+            yerr=reduced_model_results['std_norm_rmse_scores'],
             marker='o',  markersize=2, linewidth=0.3, color='k')
 ax.set_ylabel('Normalized RMSE [\%]', fontsize='small')
 ax.set_xlabel('Number of predictors', fontsize='small')
@@ -323,7 +433,7 @@ ax1.bar(list(np.linspace(0.5, n_features - 0.5, n_features)),
 ax1.tick_params(axis='x', rotation=90, labelsize='small')
 ax1.tick_params(axis='both', labelsize='small')
 ax1.set_xticklabels(
-                    # feat_importances_frame.feature.to_list(),
+                    # feat_importa nces_frame.feature.to_list(),
                     feat_importances_frame.feature.str.replace('_', '\_').to_list(),
                     fontsize=6)
 ax1.set_ylabel('Normalized', fontsize=7)
@@ -347,9 +457,15 @@ ax2.set_xticklabels(
                     fontsize=6)
 ax2.set_ylabel('Normalized', fontsize=7)
 
-ax3.errorbar(feature_threshold, reduced_model_results['mean_norm_rmse_fold'],
-             yerr=reduced_model_results['std_norm_rmse_fold'],
-             marker='o',  markersize=0, linewidth=0.3, color='k')
+ax3.errorbar(feature_threshold, reduced_model_results['mean_norm_rmse_scores'],
+             yerr=reduced_model_results['std_norm_rmse_scores'],
+             marker='o',
+             markersize=0,
+             linewidth=0.9,
+             color='r',
+             elinewidth=0.4,
+             capsize=2,
+             capthick=0.1, ecolor='k')
 ax3.set_ylabel('NRMSE [\%]', fontsize=7)
 ax3.set_xlabel('Number of predictors', fontsize='small')
 ax3.set_xticks(feature_threshold)
@@ -357,3 +473,73 @@ ax3.tick_params(axis='x', labelsize='small')
 plt.tight_layout()
 
 
+#%%
+n_features = feat_importances_frame.feature.shape[0]
+fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(3.5, 2.8))
+plt.subplots_adjust(bottom=0.15, top=0.95, left=0.15, right=0.95, hspace=0.6)
+ax1.bar(list(np.linspace(0.5, n_features - 0.5, n_features)),
+        feat_importances_frame.mean_gain_importance.values,
+        yerr=feat_importances_frame.std_gain_importance.values,
+        error_kw={'markeredgewidth': 0.3, 'elinewidth': 0.3},
+        capsize=2)
+ax1.tick_params(axis='x', rotation=90, labelsize='small')
+ax1.tick_params(axis='both', labelsize='small')
+ax1.set_xticklabels(
+                    # feat_importa nces_frame.feature.to_list(),
+                    feat_importances_frame.feature.str.replace('_', '\_').to_list(),
+                    fontsize=6)
+ax1.set_ylabel('Normalized', fontsize=7)
+
+
+ax1.set_xlim((0, len(feat_importances_frame.feature)))
+ax1.set_xticks(list(np.linspace(0.5, n_features - 0.5, n_features)))
+ax2.boxplot(perm_feat_importance[:, idx_labels],
+            vert=True,
+            labels=feature_names[idx_labels],
+            showfliers=False,
+            boxprops={'linewidth': 0.3},
+            medianprops={'linewidth': 0.3},
+            whiskerprops={'linewidth': 0.3},
+            capprops={'linewidth': 0.3})
+ax2.tick_params(axis='x', rotation=90, labelsize='small')
+ax2.tick_params(axis='both', labelsize='small')
+ax2.set_xticklabels(
+                    # feature_names[idx_labels],
+                    feature_names[idx_labels].str.replace('_', '\_'),
+                    fontsize=6)
+ax2.set_ylabel('Normalized', fontsize=7)
+
+
+#%%
+
+n_features = feat_importances_frame.feature.shape[0]
+fig, ax3 = plt.subplots(1, 1, figsize=(3.5, 1.3))
+plt.subplots_adjust(bottom=0.28, top=0.95, left=0.15, right=0.95, hspace=0.6)
+ax3.errorbar(feature_threshold, reduced_model_results['mean_norm_rmse_scores'],
+             yerr=reduced_model_results['std_norm_rmse_scores'],
+             marker='o',
+             markersize=0,
+             linewidth=0.9,
+             color='r',
+             elinewidth=0.4,
+             capsize=2,
+             capthick=0.1, ecolor='k')
+ax3.set_ylabel('NRMSE [\%]', fontsize=7)
+ax3.set_xlabel('Number of predictors', fontsize=7)
+ax3.set_xticks(feature_threshold)
+ax3.tick_params(axis='x', labelsize=7)
+# plt.tight_layout()
+
+
+
+
+#%% PARTIAL DEPENDENCE PLOTS
+# best_reduced_model = reduced_model_results['best_model'][2]
+#
+# from sklearn.inspection import plot_partial_dependence
+#
+# features = reduced_model_results['x_train'][2].columns.to_list()
+# matplotlib.rc('text', usetex=False)
+#
+# plot_partial_dependence(best_reduced_model, reduced_model_results['x_train'][2], features,
+#                         n_jobs=3, grid_resolution=20)

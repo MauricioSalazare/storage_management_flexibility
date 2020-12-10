@@ -368,6 +368,7 @@ for x_line in np.linspace(0, slide, int(slide/24)+1):
 
 
 #%% Compute the cross validation for the group of reduced feature FOR THE BEST MODEL ONLY
+####################################### USE PERMUTATION FEATURE IMPORTANCE #############################################
 if TRAIN_ALL_MODELS:
     reduced_model_results = {'norm_rmse_scores': list(),
                              'mean_norm_rmse_scores': list(),
@@ -404,20 +405,69 @@ if TRAIN_ALL_MODELS:
         print(f'NRMSE: {np.mean(norm_rmse_scores)}')
 
     pickle.dump((feature_threshold, reduced_model_results), open(abs_path / 'XGBoost_reduced_ONE_model.dat', 'wb'))
+    feature_threshold_perm = feature_threshold
+    reduced_model_results_perm = reduced_model_results
 else:
-    (feature_threshold, reduced_model_results) = pickle.load(open(abs_path / 'XGBoost_reduced_ONE_model.dat', 'rb'))
+    (feature_threshold_perm,
+     reduced_model_results_perm) = pickle.load(open(abs_path / 'XGBoost_reduced_ONE_model.dat', 'rb'))
+
+#%%
+####################################### USE FEATURE IMPORTANCE FROM TREES ##############################################
+if TRAIN_ALL_MODELS:
+    reduced_model_results = {'norm_rmse_scores': list(),
+                             'mean_norm_rmse_scores': list(),
+                             'std_norm_rmse_scores': list()}
+
+    feature_threshold = np.arange(2, 38, 2)
+    groups_train = data_train['Scenario']
+    group_kfold_inner = GroupKFold(n_splits=5)
+    for iteration, threshold in enumerate(feature_threshold):
+        input_features_columns = feat_importances_frame[:threshold].feature.to_list()
+
+        print(f'Threshold: {threshold}')
+        print(f'Features: {input_features_columns}')
+        print(f'Iteration: {iteration + 1} of {len(feature_threshold)}')
+
+        (x_, y_, _, _) = mu.split_data_for_model(file_name,
+                                                 columns_drop=['Scenario', 'v_1', ' storage_Q'],
+                                                 columns_predict=[' storage_P'],
+                                                 testing_split=0,
+                                                 select_input_features=True,
+                                                 input_features_columns=input_features_columns)
+
+        xgb_regressor_model = xgb.XGBRegressor(**opt_params)
+        norm_factor = np.max(y_.max()) - np.min(y_.min())
+        scores = cross_val_score(xgb_regressor_model,
+                                 x_, y_,
+                                 cv=group_kfold_inner.split(x_, groups=groups_train),
+                                 scoring='neg_mean_squared_error',
+                                 n_jobs=-1)
+        norm_rmse_scores = (np.sqrt(-scores) / norm_factor) * 100
+        reduced_model_results['norm_rmse_scores'].append(norm_rmse_scores)
+        reduced_model_results['mean_norm_rmse_scores'].append(np.mean(norm_rmse_scores))
+        reduced_model_results['std_norm_rmse_scores'].append(np.std(norm_rmse_scores))
+        print(f'NRMSE: {np.mean(norm_rmse_scores)}')
+
+    pickle.dump((feature_threshold, reduced_model_results),
+                open(abs_path / 'XGBoost_reduced_ONE_model_TREES_FEAT_IMP.dat', 'wb'))
+    feature_threshold_trees = feature_threshold
+    reduced_model_results_trees = reduced_model_results
+
+else:
+    (feature_threshold_trees,
+     reduced_model_results_trees) = pickle.load(open(abs_path / 'XGBoost_reduced_ONE_model_TREES_FEAT_IMP.dat', 'rb'))
 
 
 
 #%% Plot error bars
 fig, ax = plt.subplots(1, 1, figsize=(4, 2))
 fig.subplots_adjust(right=0.95, bottom=0.2, top=0.95)
-ax.errorbar(feature_threshold, reduced_model_results['mean_norm_rmse_scores'],
-            yerr=reduced_model_results['std_norm_rmse_scores'],
+ax.errorbar(feature_threshold_perm, reduced_model_results_perm['mean_norm_rmse_scores'],
+            yerr=reduced_model_results_perm['std_norm_rmse_scores'],
             marker='o',  markersize=2, linewidth=0.3, color='k')
 ax.set_ylabel('Normalized RMSE [\%]', fontsize='small')
 ax.set_xlabel('Number of predictors', fontsize='small')
-ax.set_xticks(feature_threshold)
+ax.set_xticks(feature_threshold_perm)
 ax.tick_params(axis='x', labelsize='small')
 # fig.tight_layout()
 
@@ -457,8 +507,8 @@ ax2.set_xticklabels(
                     fontsize=6)
 ax2.set_ylabel('Normalized', fontsize=7)
 
-ax3.errorbar(feature_threshold, reduced_model_results['mean_norm_rmse_scores'],
-             yerr=reduced_model_results['std_norm_rmse_scores'],
+ax3.errorbar(feature_threshold_perm, reduced_model_results_perm['mean_norm_rmse_scores'],
+             yerr=reduced_model_results_perm['std_norm_rmse_scores'],
              marker='o',
              markersize=0,
              linewidth=0.9,
@@ -468,7 +518,7 @@ ax3.errorbar(feature_threshold, reduced_model_results['mean_norm_rmse_scores'],
              capthick=0.1, ecolor='k')
 ax3.set_ylabel('NRMSE [\%]', fontsize=7)
 ax3.set_xlabel('Number of predictors', fontsize='small')
-ax3.set_xticks(feature_threshold)
+ax3.set_xticks(feature_threshold_perm)
 ax3.tick_params(axis='x', labelsize='small')
 plt.tight_layout()
 
@@ -511,12 +561,11 @@ ax2.set_ylabel('Normalized', fontsize=7)
 
 
 #%%
-
 n_features = feat_importances_frame.feature.shape[0]
 fig, ax3 = plt.subplots(1, 1, figsize=(3.5, 1.3))
 plt.subplots_adjust(bottom=0.28, top=0.95, left=0.15, right=0.95, hspace=0.6)
-ax3.errorbar(feature_threshold, reduced_model_results['mean_norm_rmse_scores'],
-             yerr=reduced_model_results['std_norm_rmse_scores'],
+ax3.errorbar(feature_threshold_perm, reduced_model_results_perm['mean_norm_rmse_scores'],
+             yerr=reduced_model_results_perm['std_norm_rmse_scores'],
              marker='o',
              markersize=0,
              linewidth=0.9,
@@ -526,9 +575,44 @@ ax3.errorbar(feature_threshold, reduced_model_results['mean_norm_rmse_scores'],
              capthick=0.1, ecolor='k')
 ax3.set_ylabel('NRMSE [\%]', fontsize=7)
 ax3.set_xlabel('Number of predictors', fontsize=7)
-ax3.set_xticks(feature_threshold)
+ax3.set_xticks(feature_threshold_perm)
 ax3.tick_params(axis='x', labelsize=7)
 # plt.tight_layout()
+
+
+#%% Sensitivity of SGBT to the number of predictors overlaid.
+n_features = feat_importances_frame.feature.shape[0]
+fig, ax3 = plt.subplots(1, 1, figsize=(3.5, 1.3))
+plt.subplots_adjust(bottom=0.28, top=0.95, left=0.15, right=0.95, hspace=0.6)
+ax3.errorbar(feature_threshold_perm, reduced_model_results_perm['mean_norm_rmse_scores'],
+             yerr=reduced_model_results_perm['std_norm_rmse_scores'],
+             marker='o',
+             markersize=0,
+             linewidth=0.9,
+             color='r',
+             elinewidth=0.4,
+             capsize=2,
+             capthick=0.1, ecolor='k',
+             label='Permutation-based')
+
+ax3.errorbar(feature_threshold_trees, reduced_model_results_trees['mean_norm_rmse_scores'],
+             yerr=reduced_model_results_trees['std_norm_rmse_scores'],
+             marker='o',
+             markersize=0,
+             linewidth=0.9,
+             color='b',
+             elinewidth=0.4,
+             capsize=2,
+             capthick=0.1, ecolor='k',
+             label='Information gain')
+
+ax3.set_ylabel('NRMSE [\%]', fontsize=7)
+ax3.set_xlabel('Number of predictors', fontsize=7)
+ax3.set_xticks(feature_threshold_perm)
+ax3.tick_params(axis='x', labelsize=7)
+ax3.legend()
+# plt.tight_layout()
+
 
 
 

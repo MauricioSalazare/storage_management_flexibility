@@ -4,8 +4,10 @@ from pathlib import Path
 import xgboost as xgb
 import pickle
 import Model_XGBoost.model_utils as mu
+from sklearn.metrics import mean_squared_error, mean_absolute_error
 from matplotlib.ticker import NullFormatter
 import matplotlib
+import pandas as pd
 abs_path = Path(__file__).parent
 matplotlib.rc('text', usetex=True)
 mu.set_figure_art()
@@ -164,7 +166,7 @@ ax.tick_params(axis='both', labelsize=7)
 ax.legend(loc='upper center', ncol=2, bbox_to_anchor=(0.5, 1.35),fancybox=False, shadow=False, fontsize=7)
 
 axins = ax.inset_axes([0.5, 0.55, 0.45, 0.4])
-axins.plot(y_data, label='Actual', linewidth=0.8, color='k')
+axins.plot(y_data, label='OEM', linewidth=0.8, color='k')
 axins.plot(x_data, label='SBT', linewidth=0.8, color='r')
 # axins.set_ylim(-3, 3)
 # Sub region of the original image
@@ -209,3 +211,18 @@ ax_.set_xlabel('Instance number [hours]', fontsize=7)
 
 for x_line in np.linspace(0, slide, int(slide / 24) + 1):
     ax_.axvline(x=x_line, linewidth=0.3, linestyle='-', color='#808080')
+
+#%% REPORT A TABLE WITH THE ERRORS OF THE PREVIOUS GRAPH
+norm_rmse_active = (np.sqrt(mean_squared_error(y_data, x_data)) / (y_data.max() - y_data.min())) * 100
+norm_rmse_reactive = (np.sqrt(mean_squared_error(y_data_reactive, x_data_reactive)) / (y_data_reactive.max() - y_data_reactive.min())) * 100
+
+mae_active = mean_absolute_error(y_data, x_data) * 1000  # kW
+mae_reactive = mean_absolute_error(y_data_reactive, x_data_reactive) * 1000  # kVAr
+
+mae_perc_active = (mae_active/(y_data.max()*1000)) * 100
+mae_perc_reactive = (mae_reactive/(y_data_reactive.max()*1000)) * 100
+
+print(pd.DataFrame({'norm_rmse': [norm_rmse_active, norm_rmse_reactive],
+                    'mae': [mae_active, mae_reactive],
+                    'mae_per': [mae_perc_active, mae_perc_reactive]},
+                   index=['active', 'reactive']))
